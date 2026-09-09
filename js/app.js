@@ -20,8 +20,9 @@
         smw: { name: '马里奥赛车', icon: '🏎️', desc: '赛车竞速' }
     };
 
-    // ROM 服务器地址（部署后替换为你的服务器地址）
-    const API_BASE = window.location.origin; // 同域名部署，后续可改为 'http://你的IP:3000'
+    // ROM 服务器地址（在 cloudflare worker 部署后填入）
+    // 示例：const API_BASE = 'https://fc-games-xxx.workers.dev';
+    const API_BASE = ''; // 留空则使用本地 IndexedDB 存储
 
     // 游戏状态
     let nes = null;
