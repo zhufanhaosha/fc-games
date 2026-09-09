@@ -119,6 +119,11 @@ h2::before {
     background: linear-gradient(135deg, var(--bg-card) 0%, rgba(34, 211, 238, 0.1) 100%);
 }
 
+.game-card.saved {
+    border-color: var(--success);
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(16, 185, 129, 0.1) 100%);
+}
+
 .game-card-icon {
     font-size: 3rem;
     margin-bottom: 0.5rem;

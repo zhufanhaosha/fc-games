@@ -16,34 +16,35 @@
         demo: {
             name: '演示程序',
             icon: '🎮',
-            desc: '测试模拟器功能',
-            rom: null
+            desc: '测试模拟器功能'
         },
         supermario: {
             name: '超级马里奥',
             icon: '🍄',
-            desc: '经典平台跳跃',
-            rom: null
+            desc: '经典平台跳跃'
         },
         tetris: {
             name: '俄罗斯方块',
             icon: '🧱',
-            desc: '经典益智游戏',
-            rom: null
+            desc: '经典益智游戏'
         },
         contra: {
             name: '魂斗罗',
             icon: '🔫',
-            desc: '经典射击游戏',
-            rom: null
+            desc: '经典射击游戏'
         },
         smw: {
             name: '马里奥赛车',
             icon: '🏎️',
-            desc: '赛车竞速',
-            rom: null
+            desc: '赛车竞速'
         }
     };
+
+    // IndexedDB
+    const DB_NAME = 'FCGamesDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'roms';
+    let db = null;
 
     // 游戏状态
     let nes = null;
@@ -53,6 +54,7 @@
     let isPlaying = false;
     let currentGame = null;
     let romData = null;
+    let romName = null;
     let imageData = null;
     let canvasCtx = null;
 
@@ -69,10 +71,98 @@
     // 初始化
     function init() {
         console.log('初始化模拟器...');
-        initNES();
-        renderGameGrid();
-        setupEventListeners();
-        setupKeyboardControls();
+        initDB().then(() => {
+            initNES();
+            renderGameGrid();
+            loadSavedROM();
+            setupEventListeners();
+            setupKeyboardControls();
+        });
+    }
+
+    // IndexedDB 初始化
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = function(e) {
+                const database = e.target.result;
+                if (!database.objectStoreNames.contains(STORE_NAME)) {
+                    database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                }
+            };
+            request.onsuccess = function(e) {
+                db = e.target.result;
+                console.log('IndexedDB 初始化完成');
+                resolve();
+            };
+            request.onerror = function(e) {
+                console.error('IndexedDB 初始化失败:', e);
+                reject(e);
+            };
+        });
+    }
+
+    // 保存 ROM 到 IndexedDB
+    function saveROM(name, data) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.put({ id: 'current', name: name, data: data });
+            request.onsuccess = function() {
+                console.log('ROM 已保存到 IndexedDB');
+                resolve();
+            };
+            request.onerror = function(e) {
+                console.error('保存 ROM 失败:', e);
+                reject(e);
+            };
+        });
+    }
+
+    // 从 IndexedDB 加载 ROM
+    function loadSavedROM() {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('current');
+            request.onsuccess = function(e) {
+                if (e.target.result) {
+                    romName = e.target.result.name;
+                    romData = new Uint8Array(e.target.result.data);
+                    console.log('ROM 已从 IndexedDB 加载:', romName, '大小:', romData.length, '字节');
+                    
+                    // 显示模拟器区域
+                    document.getElementById('emulatorSection').classList.add('active');
+                    screenOverlay.classList.remove('hidden');
+                    screenOverlay.querySelector('h3').textContent = 'ROM 已加载';
+                    screenOverlay.querySelector('p').textContent = `已加载: ${romName}，点击游戏卡片开始游玩`;
+                }
+                resolve();
+            };
+            request.onerror = function(e) {
+                console.error('加载 ROM 失败:', e);
+                reject(e);
+            };
+        });
+    }
+
+    // 删除 IndexedDB 中的 ROM
+    function deleteROM() {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.delete('current');
+            request.onsuccess = function() {
+                romData = null;
+                romName = null;
+                console.log('ROM 已从 IndexedDB 删除');
+                resolve();
+            };
+            request.onerror = function(e) {
+                console.error('删除 ROM 失败:', e);
+                reject(e);
+            };
+        });
     }
 
     // 初始化 NES 模拟器
@@ -128,6 +218,20 @@
     function renderGameGrid() {
         gameGrid.innerHTML = '';
         
+        // 如果有保存的 ROM，先显示它
+        if (romName && romData) {
+            const card = document.createElement('div');
+            card.className = 'game-card saved';
+            card.innerHTML = `
+                <div class="game-card-icon">📁</div>
+                <div class="game-card-name">${romName}</div>
+                <div class="game-card-desc">已保存的 ROM (${(romData.length / 1024).toFixed(1)}KB)</div>
+            `;
+            card.addEventListener('click', () => startGame(romData, romName));
+            gameGrid.appendChild(card);
+        }
+        
+        // 然后显示内置游戏
         Object.entries(GAMES).forEach(([key, game]) => {
             const card = document.createElement('div');
             card.className = 'game-card';
@@ -248,17 +352,23 @@
         
         const reader = new FileReader();
         reader.onload = function(e) {
-            romData = new Uint8Array(e.target.result);
-            console.log(`ROM 加载成功，大小: ${romData.length} 字节`);
+            const data = new Uint8Array(e.target.result);
+            console.log(`ROM 加载成功，大小: ${data.length} 字节`);
             
-            // 显示提示
-            alert(`已加载 ROM: ${file.name}\n\n现在可以选择游戏开始游玩！`);
-            
-            // 自动启动
-            document.getElementById('emulatorSection').classList.add('active');
-            screenOverlay.classList.remove('hidden');
-            screenOverlay.querySelector('h3').textContent = 'ROM 已加载';
-            screenOverlay.querySelector('p').textContent = `点击游戏卡片开始游玩 ${file.name}`;
+            // 保存到 IndexedDB
+            saveROM(file.name, data).then(() => {
+                romData = data;
+                romName = file.name;
+                
+                // 更新游戏网格
+                renderGameGrid();
+                
+                // 显示模拟器区域
+                document.getElementById('emulatorSection').classList.add('active');
+                screenOverlay.classList.remove('hidden');
+                screenOverlay.querySelector('h3').textContent = 'ROM 已保存';
+                screenOverlay.querySelector('p').textContent = `已保存: ${file.name}，点击游戏卡片开始游玩`;
+            });
         };
         
         reader.onerror = function() {
