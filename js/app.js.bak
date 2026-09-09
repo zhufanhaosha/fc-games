@@ -6,11 +6,6 @@
 (function() {
     'use strict';
 
-    // 获取 jsnes 库
-    const jsnes = window.jsnes;
-    const NES = jsnes.NES;
-    const Controller = jsnes.Controller;
-
     // 游戏配置
     const GAMES = {
         demo: {
@@ -53,8 +48,6 @@
     let isPlaying = false;
     let currentGame = null;
     let romData = null;
-    let imageData = null;
-    let canvasCtx = null;
 
     // DOM 元素
     const gameGrid = document.getElementById('gameGrid');
@@ -68,7 +61,6 @@
 
     // 初始化
     function init() {
-        console.log('初始化模拟器...');
         initNES();
         renderGameGrid();
         setupEventListeners();
@@ -81,32 +73,24 @@
             // 创建音频上下文
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // 获取 Canvas 上下文
-            canvasCtx = gameCanvas.getContext('2d');
-            
             // 创建 NES 实例
-            nes = new NES({
-                onFrame: function(frameBuffer) {
-                    // 将帧缓冲区数据复制到 Canvas
-                    if (imageData) {
-                        imageData.data.set(frameBuffer);
-                        canvasCtx.putImageData(imageData, 0, 0);
-                    }
-                },
-                onAudioSample: function(l, r) {
-                    // 音频处理
-                }
+            nes = new NES();
+            
+            // 设置视频输出
+            const ctx = gameCanvas.getContext('2d');
+            nes.setVideoContext({
+                width: 256,
+                height: 240,
+                imageData: ctx.createImageData(256, 240)
             });
             
-            // 创建图像数据
-            imageData = canvasCtx.createImageData(256, 240);
+            // 设置音频回调
+            nes.setAudioContext(audioContext);
             
             console.log('NES 模拟器初始化完成');
-            return true;
         } catch (e) {
             console.error('模拟器初始化失败:', e);
             alert('模拟器初始化失败，请刷新页面重试');
-            return false;
         }
     }
 
@@ -131,16 +115,48 @@
 
     // 选择游戏
     function selectGame(gameKey) {
-        if (romData) {
+        if (gameKey === 'demo') {
+            startDemo();
+        } else if (romData) {
             startGame(romData, GAMES[gameKey].name);
         } else {
             // 提示用户上传 ROM
-            alert('请先上传 .nes 格式的 ROM 文件，然后点击游戏开始游玩！');
+            alert(`请先上传 ${GAMES[gameKey].name} 的 ROM 文件，或选择「演示程序」测试模拟器`);
             document.getElementById('emulatorSection').classList.add('active');
             screenOverlay.classList.remove('hidden');
-            screenOverlay.querySelector('h3').textContent = '请上传 ROM 文件';
-            screenOverlay.querySelector('p').textContent = '点击「选择 ROM 文件」按钮上传你的 .nes 游戏文件';
         }
+    }
+
+    // 开始演示程序
+    function startDemo() {
+        console.log('启动演示程序');
+        screenOverlay.classList.add('hidden');
+        emulatorSection.classList.add('active');
+        resetBtn.disabled = false;
+        pauseBtn.disabled = false;
+        
+        // 这里可以加载一个免费的测试 ROM
+        // 暂时使用空 ROM 数据
+        const emptyRom = createEmptyRom();
+        startGame(emptyRom, '演示');
+    }
+
+    // 创建空 ROM (用于演示)
+    function createEmptyRom() {
+        // NES ROM 格式需要特定的头部
+        const header = new Uint8Array([
+            0x4E, 0x45, 0x53, 0x1A,  // "NES" + magic
+            0x01,  // 16KB PRG
+            0x01,  // 8KB CHR
+            0x00,  // mapper
+            0x00   // flags
+        ]);
+        
+        // 创建空的游戏数据
+        const prg = new Uint8Array(16384).fill(0x00);
+        const chr = new Uint8Array(8192).fill(0x00);
+        
+        return new Uint8Array([...header, ...prg, ...chr]);
     }
 
     // 开始游戏
@@ -170,14 +186,27 @@
                 cancelAnimationFrame(gameLoop);
             }
             
+            // 设置视频输出
+            const ctx = gameCanvas.getContext('2d');
+            const imageData = ctx.createImageData(256, 240);
+            
+            nes.setVideoContext({
+                width: 256,
+                height: 240,
+                imageData: imageData
+            });
+            
             // 开始游戏循环
-            function gameLoopFn() {
+            gameLoop = requestAnimationFrame(function loop() {
                 if (!isPaused && isPlaying) {
+                    // 模拟一帧
                     nes.frame();
+                    
+                    // 更新显示
+                    ctx.putImageData(imageData, 0, 0);
                 }
-                gameLoop = requestAnimationFrame(gameLoopFn);
-            }
-            gameLoop = requestAnimationFrame(gameLoopFn);
+                gameLoop = requestAnimationFrame(loop);
+            });
             
             console.log(`游戏 ${name} 启动成功`);
         } catch (e) {
@@ -189,7 +218,7 @@
     // 重置游戏
     function resetGame() {
         console.log('重置游戏');
-        if (nes && currentGame && romData) {
+        if (nes && currentGame) {
             isPaused = false;
             startGame(romData, currentGame);
         }
@@ -244,7 +273,12 @@
             document.getElementById('emulatorSection').classList.add('active');
             screenOverlay.classList.remove('hidden');
             screenOverlay.querySelector('h3').textContent = 'ROM 已加载';
-            screenOverlay.querySelector('p').textContent = `点击游戏卡片开始游玩 ${file.name}`;
+            screenOverlay.querySelector('p').textContent = `点击「选择游戏」开始游玩`;
+            
+            // 更新游戏卡片
+            document.querySelectorAll('.game-card').forEach(card => {
+                card.style.opacity = '1';
+            });
         };
         
         reader.onerror = function() {
@@ -256,6 +290,9 @@
 
     // 设置键盘控制
     function setupKeyboardControls() {
+        // 这里需要实现 jsnes 的控制器输入
+        // 由于 jsnes 的 API 限制，我们暂时使用简单的按键映射
+        
         document.addEventListener('keydown', function(e) {
             // 重置
             if (e.key.toLowerCase() === 'r') {
@@ -274,30 +311,30 @@
                 
                 switch(e.key) {
                     case 'ArrowUp':
-                        controller.buttonDown(Controller.BUTTON_UP);
+                        controller.buttonDown(4); // UP
                         break;
                     case 'ArrowDown':
-                        controller.buttonDown(Controller.BUTTON_DOWN);
+                        controller.buttonDown(5); // DOWN
                         break;
                     case 'ArrowLeft':
-                        controller.buttonDown(Controller.BUTTON_LEFT);
+                        controller.buttonDown(6); // LEFT
                         break;
                     case 'ArrowRight':
-                        controller.buttonDown(Controller.BUTTON_RIGHT);
+                        controller.buttonDown(7); // RIGHT
                         break;
                     case 'z':
                     case 'Z':
-                        controller.buttonDown(Controller.BUTTON_A);
+                        controller.buttonDown(0); // A
                         break;
                     case 'x':
                     case 'X':
-                        controller.buttonDown(Controller.BUTTON_B);
+                        controller.buttonDown(1); // B
                         break;
                     case 'Enter':
-                        controller.buttonDown(Controller.BUTTON_START);
+                        controller.buttonDown(3); // START
                         break;
                     case 'Shift':
-                        controller.buttonDown(Controller.BUTTON_SELECT);
+                        controller.buttonDown(2); // SELECT
                         break;
                 }
             }
@@ -309,30 +346,30 @@
                 
                 switch(e.key) {
                     case 'ArrowUp':
-                        controller.buttonUp(Controller.BUTTON_UP);
+                        controller.buttonUp(4);
                         break;
                     case 'ArrowDown':
-                        controller.buttonUp(Controller.BUTTON_DOWN);
+                        controller.buttonUp(5);
                         break;
                     case 'ArrowLeft':
-                        controller.buttonUp(Controller.BUTTON_LEFT);
+                        controller.buttonUp(6);
                         break;
                     case 'ArrowRight':
-                        controller.buttonUp(Controller.BUTTON_RIGHT);
+                        controller.buttonUp(7);
                         break;
                     case 'z':
                     case 'Z':
-                        controller.buttonUp(Controller.BUTTON_A);
+                        controller.buttonUp(0);
                         break;
                     case 'x':
                     case 'X':
-                        controller.buttonUp(Controller.BUTTON_B);
+                        controller.buttonUp(1);
                         break;
                     case 'Enter':
-                        controller.buttonUp(Controller.BUTTON_START);
+                        controller.buttonUp(3);
                         break;
                     case 'Shift':
-                        controller.buttonUp(Controller.BUTTON_SELECT);
+                        controller.buttonUp(2);
                         break;
                 }
             }
