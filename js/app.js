@@ -1,50 +1,27 @@
 /**
  * FC 经典游戏模拟器 - 主应用逻辑
  * 基于 jsnes 开源项目
+ * 支持服务端 ROM 存储
  */
 
 (function() {
     'use strict';
 
-    // 获取 jsnes 库
     const jsnes = window.jsnes;
     const NES = jsnes.NES;
     const Controller = jsnes.Controller;
 
-    // 游戏配置
+    // 游戏配置（内置演示）
     const GAMES = {
-        demo: {
-            name: '演示程序',
-            icon: '🎮',
-            desc: '测试模拟器功能'
-        },
-        supermario: {
-            name: '超级马里奥',
-            icon: '🍄',
-            desc: '经典平台跳跃'
-        },
-        tetris: {
-            name: '俄罗斯方块',
-            icon: '🧱',
-            desc: '经典益智游戏'
-        },
-        contra: {
-            name: '魂斗罗',
-            icon: '🔫',
-            desc: '经典射击游戏'
-        },
-        smw: {
-            name: '马里奥赛车',
-            icon: '🏎️',
-            desc: '赛车竞速'
-        }
+        demo: { name: '演示程序', icon: '🎮', desc: '测试模拟器功能' },
+        supermario: { name: '超级马里奥', icon: '🍄', desc: '经典平台跳跃' },
+        tetris: { name: '俄罗斯方块', icon: '🧱', desc: '经典益智游戏' },
+        contra: { name: '魂斗罗', icon: '🔫', desc: '经典射击游戏' },
+        smw: { name: '马里奥赛车', icon: '🏎️', desc: '赛车竞速' }
     };
 
-    // IndexedDB
-    const DB_NAME = 'FCGamesDB';
-    const DB_VERSION = 1;
-    const STORE_NAME = 'roms';
-    let db = null;
+    // ROM 服务器地址（部署后替换为你的服务器地址）
+    const API_BASE = window.location.origin; // 同域名部署，后续可改为 'http://你的IP:3000'
 
     // 游戏状态
     let nes = null;
@@ -55,8 +32,10 @@
     let currentGame = null;
     let romData = null;
     let romName = null;
+    let romId = null;
     let imageData = null;
     let canvasCtx = null;
+    let serverRoms = []; // 从服务器获取的 ROM 列表
 
     // DOM 元素
     const gameGrid = document.getElementById('gameGrid');
@@ -67,142 +46,45 @@
     const resetBtn = document.getElementById('resetBtn');
     const pauseBtn = document.getElementById('pauseBtn');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const uploadStatus = document.getElementById('uploadStatus');
 
     // 初始化
     function init() {
         console.log('初始化模拟器...');
-        initDB().then(() => {
-            initNES();
-            renderGameGrid();
-            loadSavedROM();
-            setupEventListeners();
-            setupKeyboardControls();
-        });
-    }
-
-    // IndexedDB 初始化
-    function initDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onupgradeneeded = function(e) {
-                const database = e.target.result;
-                if (!database.objectStoreNames.contains(STORE_NAME)) {
-                    database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                }
-            };
-            request.onsuccess = function(e) {
-                db = e.target.result;
-                console.log('IndexedDB 初始化完成');
-                resolve();
-            };
-            request.onerror = function(e) {
-                console.error('IndexedDB 初始化失败:', e);
-                reject(e);
-            };
-        });
-    }
-
-    // 保存 ROM 到 IndexedDB
-    function saveROM(name, data) {
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.put({ id: 'current', name: name, data: data });
-            request.onsuccess = function() {
-                console.log('ROM 已保存到 IndexedDB');
-                resolve();
-            };
-            request.onerror = function(e) {
-                console.error('保存 ROM 失败:', e);
-                reject(e);
-            };
-        });
-    }
-
-    // 从 IndexedDB 加载 ROM
-    function loadSavedROM() {
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get('current');
-            request.onsuccess = function(e) {
-                if (e.target.result) {
-                    romName = e.target.result.name;
-                    romData = new Uint8Array(e.target.result.data);
-                    console.log('ROM 已从 IndexedDB 加载:', romName, '大小:', romData.length, '字节');
-                    
-                    // 显示模拟器区域
-                    document.getElementById('emulatorSection').classList.add('active');
-                    screenOverlay.classList.remove('hidden');
-                    screenOverlay.querySelector('h3').textContent = 'ROM 已加载';
-                    screenOverlay.querySelector('p').textContent = `已加载: ${romName}，点击游戏卡片开始游玩`;
-                }
-                resolve();
-            };
-            request.onerror = function(e) {
-                console.error('加载 ROM 失败:', e);
-                reject(e);
-            };
-        });
-    }
-
-    // 删除 IndexedDB 中的 ROM
-    function deleteROM() {
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.delete('current');
-            request.onsuccess = function() {
-                romData = null;
-                romName = null;
-                console.log('ROM 已从 IndexedDB 删除');
-                resolve();
-            };
-            request.onerror = function(e) {
-                console.error('删除 ROM 失败:', e);
-                reject(e);
-            };
-        });
+        initNES();
+        loadServerRoms();
+        renderGameGrid();
+        setupEventListeners();
+        setupKeyboardControls();
     }
 
     // 初始化 NES 模拟器
     function initNES() {
         try {
-            // 创建音频上下文
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // 获取 Canvas 上下文
             canvasCtx = gameCanvas.getContext('2d');
             
-            // 创建离屏 Canvas（NES 原生 256x240）
             const offscreen = document.createElement('canvas');
             offscreen.width = 256;
             offscreen.height = 240;
             const offCtx = offscreen.getContext('2d');
             imageData = offCtx.createImageData(256, 240);
             
-            // 创建 NES 实例
             nes = new NES({
                 onFrame: function(frameBuffer) {
-                    // frameBuffer 是 Uint32Array(61440)，每像素 32 位
-                    // 转换为 RGBA Uint8ClampedArray
                     const data = imageData.data;
                     for (let i = 0; i < 61440; i++) {
                         const p = frameBuffer[i];
                         const idx = i * 4;
-                        data[idx]     = (p >> 16) & 0xFF; // R
-                        data[idx + 1] = (p >> 8) & 0xFF;  // G
-                        data[idx + 2] = p & 0xFF;         // B
-                        data[idx + 3] = 0xFF;             // A
+                        data[idx]     = (p >> 16) & 0xFF;
+                        data[idx + 1] = (p >> 8) & 0xFF;
+                        data[idx + 2] = p & 0xFF;
+                        data[idx + 3] = 0xFF;
                     }
-                    // 先画到离屏 Canvas
                     offCtx.putImageData(imageData, 0, 0);
-                    // 再缩放到显示 Canvas（CSS 负责视觉放大）
                     canvasCtx.drawImage(offscreen, 0, 0);
                 },
-                onAudioSample: function(l, r) {
-                    // 音频处理
-                }
+                onAudioSample: function() {}
             });
             
             console.log('NES 模拟器初始化完成');
@@ -214,37 +96,73 @@
         }
     }
 
+    // 从服务器加载 ROM 列表
+    function loadServerRoms() {
+        fetch(`${API_BASE}/api/roms`)
+            .then(r => r.json())
+            .then(data => {
+                serverRoms = data;
+                console.log(`加载了 ${data.length} 个 ROM`);
+                renderGameGrid();
+            })
+            .catch(e => console.log('服务器未连接，使用本地模式', e));
+    }
+
     // 渲染游戏选择网格
     function renderGameGrid() {
         gameGrid.innerHTML = '';
         
-        // 如果有保存的 ROM，先显示它
-        if (romName && romData) {
-            const card = document.createElement('div');
-            card.className = 'game-card saved';
-            card.innerHTML = `
-                <div class="game-card-icon">📁</div>
-                <div class="game-card-name">${romName}</div>
-                <div class="game-card-desc">已保存的 ROM (${(romData.length / 1024).toFixed(1)}KB)</div>
-            `;
-            card.addEventListener('click', () => startGame(romData, romName));
-            gameGrid.appendChild(card);
+        // 显示服务器上的 ROM
+        if (serverRoms.length > 0) {
+            const section = document.createElement('div');
+            section.style.cssText = 'width:100%;margin-bottom:1rem;color:var(--text-secondary);font-size:0.9rem;';
+            section.textContent = `📁 服务器 ROM (${serverRoms.length})`;
+            gameGrid.appendChild(section);
+            
+            serverRoms.forEach(rom => {
+                const card = document.createElement('div');
+                card.className = 'game-card saved';
+                card.innerHTML = `
+                    <div class="game-card-icon">🎮</div>
+                    <div class="game-card-name">${rom.name}</div>
+                    <div class="game-card-desc">${rom.sizeKB}KB</div>
+                `;
+                card.addEventListener('click', () => downloadAndStart(rom));
+                gameGrid.appendChild(card);
+            });
         }
         
-        // 然后显示内置游戏
+        // 显示内置游戏
         Object.entries(GAMES).forEach(([key, game]) => {
             const card = document.createElement('div');
             card.className = 'game-card';
-            card.dataset.game = key;
             card.innerHTML = `
                 <div class="game-card-icon">${game.icon}</div>
                 <div class="game-card-name">${game.name}</div>
                 <div class="game-card-desc">${game.desc}</div>
             `;
-            
             card.addEventListener('click', () => selectGame(key));
             gameGrid.appendChild(card);
         });
+    }
+
+    // 从服务器下载并开始游戏
+    function downloadAndStart(rom) {
+        console.log(`下载并启动: ${rom.name}`);
+        fetch(`${API_BASE}/api/download/${rom.id}`)
+            .then(r => {
+                if (!r.ok) throw new Error('下载失败');
+                return r.arrayBuffer();
+            })
+            .then(data => {
+                romData = new Uint8Array(data);
+                romName = rom.name;
+                startGame(romData, romName);
+            })
+            .catch(e => {
+                console.error('下载失败:', e);
+                alert('ROM 下载失败，请重试');
+            });
     }
 
     // 选择游戏
@@ -252,7 +170,6 @@
         if (romData) {
             startGame(romData, GAMES[gameKey].name);
         } else {
-            // 提示用户上传 ROM
             alert('请先上传 .nes 格式的 ROM 文件，然后点击游戏开始游玩！');
             document.getElementById('emulatorSection').classList.add('active');
             screenOverlay.classList.remove('hidden');
@@ -264,39 +181,26 @@
     // 开始游戏
     function startGame(rom, name) {
         console.log(`启动游戏: ${name}`);
-        
-        if (!nes) {
-            alert('模拟器未初始化');
-            return;
-        }
+        if (!nes) { alert('模拟器未初始化'); return; }
         
         try {
-            // 加载 ROM
             nes.loadROM(rom);
             currentGame = name;
             isPlaying = true;
             isPaused = false;
             
-            // 显示模拟器界面
             screenOverlay.classList.add('hidden');
             emulatorSection.classList.add('active');
             resetBtn.disabled = false;
             pauseBtn.disabled = false;
             
-            // 启动游戏循环
-            if (gameLoop) {
-                cancelAnimationFrame(gameLoop);
-            }
+            if (gameLoop) cancelAnimationFrame(gameLoop);
             
-            // 开始游戏循环
             function gameLoopFn() {
-                if (!isPaused && isPlaying) {
-                    nes.frame();
-                }
+                if (!isPaused && isPlaying) nes.frame();
                 gameLoop = requestAnimationFrame(gameLoopFn);
             }
             gameLoop = requestAnimationFrame(gameLoopFn);
-            
             console.log(`游戏 ${name} 启动成功`);
         } catch (e) {
             console.error('启动游戏失败:', e);
@@ -306,7 +210,6 @@
 
     // 重置游戏
     function resetGame() {
-        console.log('重置游戏');
         if (nes && currentGame && romData) {
             isPaused = false;
             startGame(romData, currentGame);
@@ -317,16 +220,13 @@
     function togglePause() {
         isPaused = !isPaused;
         pauseBtn.textContent = isPaused ? '继续 (Space)' : '暂停 (Space)';
-        console.log(isPaused ? '游戏已暂停' : '游戏继续');
     }
 
     // 全屏模式
     function toggleFullscreen() {
         const screen = document.querySelector('.screen-wrapper');
         if (!document.fullscreenElement) {
-            screen.requestFullscreen().catch(err => {
-                console.error('全屏失败:', err);
-            });
+            screen.requestFullscreen().catch(err => console.error('全屏失败:', err));
         } else {
             document.exitFullscreen();
         }
@@ -334,10 +234,7 @@
 
     // 设置事件监听
     function setupEventListeners() {
-        // ROM 上传
         romUpload.addEventListener('change', handleRomUpload);
-        
-        // 控制按钮
         resetBtn.addEventListener('click', resetGame);
         pauseBtn.addEventListener('click', togglePause);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
@@ -350,114 +247,86 @@
         
         console.log(`上传 ROM: ${file.name}`);
         
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            console.log(`ROM 加载成功，大小: ${data.length} 字节`);
-            
-            // 保存到 IndexedDB
-            saveROM(file.name, data).then(() => {
-                romData = data;
-                romName = file.name;
-                
-                // 更新游戏网格
-                renderGameGrid();
-                
-                // 显示模拟器区域
-                document.getElementById('emulatorSection').classList.add('active');
-                screenOverlay.classList.remove('hidden');
-                screenOverlay.querySelector('h3').textContent = 'ROM 已保存';
-                screenOverlay.querySelector('p').textContent = `已保存: ${file.name}，点击游戏卡片开始游玩`;
+        const formData = new FormData();
+        formData.append('rom', file);
+        
+        // 显示上传中状态
+        if (uploadStatus) {
+            uploadStatus.textContent = '上传中...';
+            uploadStatus.style.display = 'block';
+        }
+        
+        fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    romData = null; // 不存内存，从服务器加载
+                    romName = data.rom.name;
+                    romId = data.rom.id;
+                    
+                    if (uploadStatus) {
+                        uploadStatus.textContent = `✅ 上传成功: ${file.name}`;
+                        uploadStatus.style.color = 'var(--success)';
+                    }
+                    
+                    // 重新加载 ROM 列表
+                    loadServerRoms();
+                    
+                    // 显示模拟器区域
+                    document.getElementById('emulatorSection').classList.add('active');
+                    screenOverlay.classList.remove('hidden');
+                    screenOverlay.querySelector('h3').textContent = 'ROM 已上传';
+                    screenOverlay.querySelector('p').textContent = `已上传: ${file.name}，点击游戏卡片开始游玩`;
+                } else {
+                    throw new Error(data.error || '上传失败');
+                }
+            })
+            .catch(e => {
+                console.error('上传失败:', e);
+                if (uploadStatus) {
+                    uploadStatus.textContent = `❌ 上传失败: ${e.message}`;
+                    uploadStatus.style.color = '#ef4444';
+                }
+                alert(`上传失败: ${e.message}\n\n如需服务器存储功能，请部署后端服务后修改 API_BASE 地址。`);
             });
-        };
         
-        reader.onerror = function() {
-            alert('ROM 文件读取失败，请重试');
-        };
-        
-        reader.readAsArrayBuffer(file);
+        // 清空 input 以便重复上传同名文件
+        event.target.value = '';
     }
 
     // 设置键盘控制
     function setupKeyboardControls() {
         document.addEventListener('keydown', function(e) {
-            // 重置
-            if (e.key.toLowerCase() === 'r') {
-                resetGame();
-            }
+            if (e.key.toLowerCase() === 'r') resetGame();
+            if (e.key === ' ') { e.preventDefault(); togglePause(); }
             
-            // 暂停
-            if (e.key === ' ') {
-                e.preventDefault();
-                togglePause();
-            }
-            
-            // 方向键映射到控制器
             if (nes) {
-                const controller = nes.Controller1;
-                
+                const c = nes.Controller1;
                 switch(e.key) {
-                    case 'ArrowUp':
-                        controller.buttonDown(Controller.BUTTON_UP);
-                        break;
-                    case 'ArrowDown':
-                        controller.buttonDown(Controller.BUTTON_DOWN);
-                        break;
-                    case 'ArrowLeft':
-                        controller.buttonDown(Controller.BUTTON_LEFT);
-                        break;
-                    case 'ArrowRight':
-                        controller.buttonDown(Controller.BUTTON_RIGHT);
-                        break;
-                    case 'z':
-                    case 'Z':
-                        controller.buttonDown(Controller.BUTTON_A);
-                        break;
-                    case 'x':
-                    case 'X':
-                        controller.buttonDown(Controller.BUTTON_B);
-                        break;
-                    case 'Enter':
-                        controller.buttonDown(Controller.BUTTON_START);
-                        break;
-                    case 'Shift':
-                        controller.buttonDown(Controller.BUTTON_SELECT);
-                        break;
+                    case 'ArrowUp': c.buttonDown(Controller.BUTTON_UP); break;
+                    case 'ArrowDown': c.buttonDown(Controller.BUTTON_DOWN); break;
+                    case 'ArrowLeft': c.buttonDown(Controller.BUTTON_LEFT); break;
+                    case 'ArrowRight': c.buttonDown(Controller.BUTTON_RIGHT); break;
+                    case 'z': case 'Z': c.buttonDown(Controller.BUTTON_A); break;
+                    case 'x': case 'X': c.buttonDown(Controller.BUTTON_B); break;
+                    case 'Enter': c.buttonDown(Controller.BUTTON_START); break;
+                    case 'Shift': c.buttonDown(Controller.BUTTON_SELECT); break;
                 }
             }
         });
         
         document.addEventListener('keyup', function(e) {
             if (nes) {
-                const controller = nes.Controller1;
-                
+                const c = nes.Controller1;
                 switch(e.key) {
-                    case 'ArrowUp':
-                        controller.buttonUp(Controller.BUTTON_UP);
-                        break;
-                    case 'ArrowDown':
-                        controller.buttonUp(Controller.BUTTON_DOWN);
-                        break;
-                    case 'ArrowLeft':
-                        controller.buttonUp(Controller.BUTTON_LEFT);
-                        break;
-                    case 'ArrowRight':
-                        controller.buttonUp(Controller.BUTTON_RIGHT);
-                        break;
-                    case 'z':
-                    case 'Z':
-                        controller.buttonUp(Controller.BUTTON_A);
-                        break;
-                    case 'x':
-                    case 'X':
-                        controller.buttonUp(Controller.BUTTON_B);
-                        break;
-                    case 'Enter':
-                        controller.buttonUp(Controller.BUTTON_START);
-                        break;
-                    case 'Shift':
-                        controller.buttonUp(Controller.BUTTON_SELECT);
-                        break;
+                    case 'ArrowUp': c.buttonUp(Controller.BUTTON_UP); break;
+                    case 'ArrowDown': c.buttonUp(Controller.BUTTON_DOWN); break;
+                    case 'ArrowLeft': c.buttonUp(Controller.BUTTON_LEFT); break;
+                    case 'ArrowRight': c.buttonUp(Controller.BUTTON_RIGHT); break;
+                    case 'z': case 'Z': c.buttonUp(Controller.BUTTON_A); break;
+                    case 'x': case 'X': c.buttonUp(Controller.BUTTON_B); break;
+                    case 'Enter': c.buttonUp(Controller.BUTTON_START); break;
+                    case 'Shift': c.buttonUp(Controller.BUTTON_SELECT); break;
                 }
             }
         });
