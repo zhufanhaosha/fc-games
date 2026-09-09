@@ -84,22 +84,36 @@
             // 获取 Canvas 上下文
             canvasCtx = gameCanvas.getContext('2d');
             
+            // 创建离屏 Canvas（NES 原生 256x240）
+            const offscreen = document.createElement('canvas');
+            offscreen.width = 256;
+            offscreen.height = 240;
+            const offCtx = offscreen.getContext('2d');
+            imageData = offCtx.createImageData(256, 240);
+            
             // 创建 NES 实例
             nes = new NES({
                 onFrame: function(frameBuffer) {
-                    // 将帧缓冲区数据复制到 Canvas
-                    if (imageData) {
-                        imageData.data.set(frameBuffer);
-                        canvasCtx.putImageData(imageData, 0, 0);
+                    // frameBuffer 是 Uint32Array(61440)，每像素 32 位
+                    // 转换为 RGBA Uint8ClampedArray
+                    const data = imageData.data;
+                    for (let i = 0; i < 61440; i++) {
+                        const p = frameBuffer[i];
+                        const idx = i * 4;
+                        data[idx]     = (p >> 16) & 0xFF; // R
+                        data[idx + 1] = (p >> 8) & 0xFF;  // G
+                        data[idx + 2] = p & 0xFF;         // B
+                        data[idx + 3] = 0xFF;             // A
                     }
+                    // 先画到离屏 Canvas
+                    offCtx.putImageData(imageData, 0, 0);
+                    // 再缩放到显示 Canvas（CSS 负责视觉放大）
+                    canvasCtx.drawImage(offscreen, 0, 0);
                 },
                 onAudioSample: function(l, r) {
                     // 音频处理
                 }
             });
-            
-            // 创建图像数据
-            imageData = canvasCtx.createImageData(256, 240);
             
             console.log('NES 模拟器初始化完成');
             return true;

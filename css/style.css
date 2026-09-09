@@ -212,6 +212,7 @@ h2::before {
     height: 100%;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    display: block;
 }
 
 .screen-overlay {
