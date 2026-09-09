@@ -22,7 +22,7 @@
 
     // ROM 服务器地址（在 cloudflare worker 部署后填入）
     // 示例：const API_BASE = 'https://fc-games-xxx.workers.dev';
-    const API_BASE = ''; // 留空则使用本地 IndexedDB 存储
+    const API_BASE = 'https://fc-roms.568238911.workers.dev'; // Cloudflare Worker
 
     // 游戏状态
     let nes = null;
