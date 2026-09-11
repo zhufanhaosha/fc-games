@@ -112,7 +112,13 @@
         console.log('初始化模拟器...');
         initNES();
         updateAuthUI();
-        loadServerRoms();
+
+        if (!isLoggedIn()) {
+            // 未登录：自动弹出登录框，且不加载服务器数据
+            setTimeout(() => openModal('loginModal'), 300);
+        } else {
+            loadServerRoms();
+        }
         renderGameGrid();
         setupEventListeners();
         setupKeyboardControls();
@@ -163,14 +169,21 @@
 
     // 从服务器加载 ROM 列表
     function loadServerRoms() {
-        fetch(`${API_BASE}/api/roms`)
-            .then(r => r.json())
+        if (!isLoggedIn()) return;
+        fetch(`${API_BASE}/api/roms`, { headers: authHeaders() })
+            .then(r => {
+                if (r.status === 401) throw new Error('未登录');
+                return r.json();
+            })
             .then(data => {
                 serverRoms = data;
                 console.log(`加载了 ${data.length} 个 ROM`);
                 renderGameGrid();
             })
-            .catch(e => console.log('服务器未连接，使用本地模式', e));
+            .catch(e => {
+                console.log('服务器未连接', e);
+                if (isLoggedIn()) openModal('loginModal');
+            });
     }
 
     // 渲染游戏选择网格
@@ -178,6 +191,21 @@
         gameGrid.innerHTML = '';
         romCount.textContent = serverRoms.length ? `(${serverRoms.length} 个)` : '';
         const loggedIn = isLoggedIn();
+
+        // 未登录：只显示提示
+        if (!loggedIn) {
+            const hint = document.createElement('div');
+            hint.className = 'game-card';
+            hint.style.cssText = 'grid-column:1/-1;text-align:center;padding:2rem;cursor:default;';
+            hint.innerHTML = `
+                <div class="game-card-icon">🔒</div>
+                <div class="game-card-name">请先登录</div>
+                <div class="game-card-desc">输入密码后即可查看和游玩游戏</div>
+            `;
+            hint.addEventListener('click', () => openModal('loginModal'));
+            gameGrid.appendChild(hint);
+            return;
+        }
 
         // 显示服务器上的 ROM
         if (serverRoms.length > 0) {
@@ -235,8 +263,9 @@
     // 从服务器下载并开始游戏
     function downloadAndStart(rom) {
         console.log(`下载并启动: ${rom.name}`);
-        fetch(`${API_BASE}/api/download/${rom.id}`)
+        fetch(`${API_BASE}/api/download/${rom.id}`, { headers: authHeaders() })
             .then(r => {
+                if (r.status === 401) throw new Error('未登录，请先登录');
                 if (!r.ok) throw new Error('下载失败');
                 return r.arrayBuffer();
             })
@@ -526,6 +555,7 @@
                 closeModal('loginModal');
                 document.getElementById('loginPassword').value = '';
                 renderGameGrid();
+                loadServerRoms();
                 uploadStatus && (uploadStatus.textContent = '✅ 登录成功', uploadStatus.style.display = 'block');
                 setTimeout(() => { uploadStatus && (uploadStatus.style.display = 'none'); }, 2000);
             } catch (e) {
