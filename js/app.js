@@ -302,7 +302,7 @@
             if (e.key === ' ') { e.preventDefault(); togglePause(); }
             
             if (nes) {
-                const c = nes.Controller1;
+                const c = nes.controllers[1] || nes.Controller1;
                 switch(e.key) {
                     case 'ArrowUp': c.buttonDown(Controller.BUTTON_UP); break;
                     case 'ArrowDown': c.buttonDown(Controller.BUTTON_DOWN); break;
@@ -318,7 +318,7 @@
         
         document.addEventListener('keyup', function(e) {
             if (nes) {
-                const c = nes.Controller1;
+                const c = nes.controllers[1] || nes.Controller1;
                 switch(e.key) {
                     case 'ArrowUp': c.buttonUp(Controller.BUTTON_UP); break;
                     case 'ArrowDown': c.buttonUp(Controller.BUTTON_DOWN); break;
