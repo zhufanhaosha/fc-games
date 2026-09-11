@@ -401,3 +401,289 @@ footer {
 .loading {
     animation: pulse 1.5s infinite;
 }
+
+/* ==================== 新增功能样式 ==================== */
+
+/* Header 行布局 */
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.login-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.user-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.btn-small {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+}
+
+.count-badge {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
+/* 游戏卡片删除按钮 */
+.game-card {
+    position: relative;
+}
+
+.card-delete {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 5;
+}
+
+.game-card:hover .card-delete {
+    opacity: 1;
+}
+
+.card-delete:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+/* 模式弹窗 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--bg-hover);
+}
+
+.modal h3 {
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent);
+}
+
+.modal-hint {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1.2rem;
+}
+
+.modal input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.8rem;
+    background: var(--bg-dark);
+    border: 1px solid var(--bg-hover);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.modal input:focus {
+    border-color: var(--primary);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.modal-error {
+    color: #ef4444;
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0.5rem;
+    padding: 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 6px;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+/* 手柄已连接提示 */
+.gamepad-hint {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(16, 185, 129, 0.9);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    z-index: 10;
+    animation: pulse 2s infinite;
+}
+
+/* 虚拟手柄 */
+.virtual-gamepad {
+    display: none;
+    justify-content: space-between;
+    align-items: flex-end;
+    max-width: 512px;
+    margin: 1.5rem auto 0;
+    padding: 1rem 0.5rem;
+    gap: 1rem;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.gp-dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(3, 60px);
+    gap: 4px;
+}
+
+.gp-up    { grid-column: 2; grid-row: 1; }
+.gp-left  { grid-column: 1; grid-row: 2; }
+.gp-right { grid-column: 3; grid-row: 2; }
+.gp-down  { grid-column: 2; grid-row: 3; }
+
+.gp-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.gp-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(99, 102, 241, 0.6);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s ease;
+    touch-action: none;
+}
+
+.gp-btn:active, .gp-btn.pressed {
+    background: var(--primary);
+    transform: scale(0.9);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
+}
+
+.gp-start, .gp-select {
+    width: 52px;
+    height: 34px;
+    border-radius: 16px;
+    background: rgba(148, 163, 184, 0.4);
+    font-size: 0.75rem;
+}
+
+.gp-a {
+    width: 68px;
+    height: 68px;
+    background: rgba(236, 72, 153, 0.6);
+    font-size: 1.4rem;
+}
+
+.gp-b {
+    width: 56px;
+    height: 56px;
+    background: rgba(34, 211, 238, 0.6);
+    font-size: 1.2rem;
+}
+
+.gp-a:active, .gp-a.pressed {
+    background: var(--secondary);
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.6);
+}
+
+.gp-b:active, .gp-b.pressed {
+    background: var(--accent);
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.6);
+}
+
+/* 存档按钮高亮 */
+#saveBtn, #loadBtn {
+    min-width: 110px;
+}
+
+@media (max-width: 768px) {
+    .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .virtual-gamepad {
+        gap: 0.5rem;
+    }
+    .gp-dpad {
+        grid-template-columns: repeat(3, 48px);
+        grid-template-rows: repeat(3, 48px);
+    }
+    .gp-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 0.9rem;
+    }
+    .gp-a { width: 56px; height: 56px; }
+    .gp-b { width: 46px; height: 46px; }
+    .gp-start, .gp-select { width: 44px; height: 28px; }
+}

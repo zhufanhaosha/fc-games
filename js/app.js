@@ -1,7 +1,7 @@
 /**
  * FC 经典游戏模拟器 - 主应用逻辑
  * 基于 jsnes 开源项目
- * 支持服务端 ROM 存储
+ * 功能：ROM 存储、密码登录、云存档、手柄控制
  */
 
 (function() {
@@ -20,9 +20,11 @@
         smw: { name: '马里奥赛车', icon: '🏎️', desc: '赛车竞速' }
     };
 
-    // ROM 服务器地址（在 cloudflare worker 部署后填入）
-    // 示例：const API_BASE = 'https://fc-games-xxx.workers.dev';
-    const API_BASE = 'https://fc-roms.568238911.workers.dev'; // Cloudflare Worker
+    // ROM 服务器地址
+    const API_BASE = 'https://fc-roms.568238911.workers.dev';
+
+    // 存储 key
+    const TOKEN_KEY = 'fc_games_token';
 
     // 游戏状态
     let nes = null;
@@ -31,32 +33,92 @@
     let isPaused = false;
     let isPlaying = false;
     let currentGame = null;
+    let currentRomId = null;
     let romData = null;
     let romName = null;
-    let romId = null;
     let imageData = null;
     let canvasCtx = null;
-    let serverRoms = []; // 从服务器获取的 ROM 列表
+    let serverRoms = [];
+    let token = localStorage.getItem(TOKEN_KEY) || '';
+    let isTouch = false;
+    let gamepadIndex = null;
 
     // DOM 元素
     const gameGrid = document.getElementById('gameGrid');
     const romUpload = document.getElementById('romUpload');
+    const uploadBtn = document.getElementById('uploadBtn');
     const emulatorSection = document.getElementById('emulatorSection');
     const gameCanvas = document.getElementById('gameCanvas');
     const screenOverlay = document.getElementById('screenOverlay');
     const resetBtn = document.getElementById('resetBtn');
     const pauseBtn = document.getElementById('pauseBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const loadBtn = document.getElementById('loadBtn');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     const uploadStatus = document.getElementById('uploadStatus');
+    const romCount = document.getElementById('romCount');
+    const gamepadHint = document.getElementById('gamepadHint');
+    const virtualGamepad = document.getElementById('virtualGamepad');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginStatus = document.getElementById('loginStatus');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const changePwdBtn = document.getElementById('changePwdBtn');
 
-    // 初始化
+    // ==================== 认证 ====================
+
+    function authHeaders(extra) {
+        const h = extra || {};
+        if (token) h['X-Auth-Token'] = token;
+        return h;
+    }
+
+    function isLoggedIn() {
+        return !!token;
+    }
+
+    function updateAuthUI() {
+        if (isLoggedIn()) {
+            loginBtn.style.display = 'none';
+            loginStatus.style.display = 'flex';
+        } else {
+            loginBtn.style.display = '';
+            loginStatus.style.display = 'none';
+        }
+    }
+
+    async function apiLogin(password) {
+        const r = await fetch(`${API_BASE}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || '登录失败');
+        token = data.token;
+        localStorage.setItem(TOKEN_KEY, token);
+        updateAuthUI();
+        return data;
+    }
+
+    function logout() {
+        token = '';
+        localStorage.removeItem(TOKEN_KEY);
+        updateAuthUI();
+    }
+
+    // ==================== 初始化 ====================
+
     function init() {
         console.log('初始化模拟器...');
         initNES();
+        updateAuthUI();
         loadServerRoms();
         renderGameGrid();
         setupEventListeners();
         setupKeyboardControls();
+        setupModalClose();
+        setupGamepad();
+        setupTouchControls();
     }
 
     // 初始化 NES 模拟器
@@ -64,13 +126,13 @@
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             canvasCtx = gameCanvas.getContext('2d');
-            
+
             const offscreen = document.createElement('canvas');
             offscreen.width = 256;
             offscreen.height = 240;
             const offCtx = offscreen.getContext('2d');
             imageData = offCtx.createImageData(256, 240);
-            
+
             nes = new NES({
                 onFrame: function(frameBuffer) {
                     const data = imageData.data;
@@ -87,7 +149,7 @@
                 },
                 onAudioSample: function() {}
             });
-            
+
             console.log('NES 模拟器初始化完成');
             return true;
         } catch (e) {
@@ -96,6 +158,8 @@
             return false;
         }
     }
+
+    // ==================== 服务器数据 ====================
 
     // 从服务器加载 ROM 列表
     function loadServerRoms() {
@@ -112,27 +176,40 @@
     // 渲染游戏选择网格
     function renderGameGrid() {
         gameGrid.innerHTML = '';
-        
+        romCount.textContent = serverRoms.length ? `(${serverRoms.length} 个)` : '';
+        const loggedIn = isLoggedIn();
+
         // 显示服务器上的 ROM
         if (serverRoms.length > 0) {
             const section = document.createElement('div');
             section.style.cssText = 'width:100%;margin-bottom:1rem;color:var(--text-secondary);font-size:0.9rem;';
             section.textContent = `📁 服务器 ROM (${serverRoms.length})`;
             gameGrid.appendChild(section);
-            
+
             serverRoms.forEach(rom => {
                 const card = document.createElement('div');
                 card.className = 'game-card saved';
                 card.innerHTML = `
                     <div class="game-card-icon">🎮</div>
                     <div class="game-card-name">${rom.name}</div>
-                    <div class="game-card-desc">${rom.sizeKB}KB</div>
+                    <div class="game-card-desc">${rom.sizeKB}KB · ${formatTime(rom.uploadTime)}</div>
+                    ${loggedIn ? `<button class="card-delete" data-id="${rom.id}" title="删除">&times;</button>` : ''}
                 `;
-                card.addEventListener('click', () => downloadAndStart(rom));
+                card.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('card-delete')) return;
+                    downloadAndStart(rom);
+                });
+                const delBtn = card.querySelector('.card-delete');
+                if (delBtn) {
+                    delBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showDeleteConfirm(rom);
+                    });
+                }
                 gameGrid.appendChild(card);
             });
         }
-        
+
         // 显示内置游戏
         Object.entries(GAMES).forEach(([key, game]) => {
             const card = document.createElement('div');
@@ -147,6 +224,14 @@
         });
     }
 
+    function formatTime(t) {
+        if (!t) return '';
+        try {
+            const d = new Date(t);
+            return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } catch (e) { return ''; }
+    }
+
     // 从服务器下载并开始游戏
     function downloadAndStart(rom) {
         console.log(`下载并启动: ${rom.name}`);
@@ -158,6 +243,7 @@
             .then(data => {
                 romData = new Uint8Array(data);
                 romName = rom.name;
+                currentRomId = rom.id;
                 startGame(romData, romName);
             })
             .catch(e => {
@@ -166,9 +252,10 @@
             });
     }
 
-    // 选择游戏
+    // 选择游戏（内置演示用）
     function selectGame(gameKey) {
         if (romData) {
+            currentRomId = null;
             startGame(romData, GAMES[gameKey].name);
         } else {
             alert('请先上传 .nes 格式的 ROM 文件，然后点击游戏开始游玩！');
@@ -179,26 +266,31 @@
         }
     }
 
+    // ==================== 游戏控制 ====================
+
     // 开始游戏
     function startGame(rom, name) {
         console.log(`启动游戏: ${name}`);
         if (!nes) { alert('模拟器未初始化'); return; }
-        
+
         try {
             nes.loadROM(rom);
             currentGame = name;
             isPlaying = true;
             isPaused = false;
-            
+
             screenOverlay.classList.add('hidden');
             emulatorSection.classList.add('active');
             resetBtn.disabled = false;
             pauseBtn.disabled = false;
-            
+            saveBtn.disabled = !currentRomId;
+            loadBtn.disabled = !currentRomId;
+
             if (gameLoop) cancelAnimationFrame(gameLoop);
-            
+
             function gameLoopFn() {
                 if (!isPaused && isPlaying) nes.frame();
+                pollGamepad();
                 gameLoop = requestAnimationFrame(gameLoopFn);
             }
             gameLoop = requestAnimationFrame(gameLoopFn);
@@ -233,47 +325,146 @@
         }
     }
 
-    // 设置事件监听
-    function setupEventListeners() {
-        romUpload.addEventListener('change', handleRomUpload);
-        resetBtn.addEventListener('click', resetGame);
-        pauseBtn.addEventListener('click', togglePause);
-        fullscreenBtn.addEventListener('click', toggleFullscreen);
+    // ==================== 云存档 ====================
+
+    // 保存存档 (F5)
+    async function saveGame() {
+        if (!nes || !currentRomId) {
+            alert('请先打开一个服务器上的游戏');
+            return;
+        }
+        if (!isLoggedIn()) {
+            alert('请先登录');
+            openModal('loginModal');
+            return;
+        }
+        try {
+            const state = nes.toJSON();
+            const data = state ? JSON.stringify(state) : '';
+            if (!data) { alert('存档数据为空'); return; }
+            const r = await fetch(`${API_BASE}/api/save/${currentRomId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ data })
+            });
+            const res = await r.json();
+            if (!res.success) throw new Error(res.error || '保存失败');
+            flashMsg('💾 存档成功');
+        } catch (e) {
+            console.error('存档失败:', e);
+            alert(`存档失败: ${e.message}`);
+        }
     }
 
-    // 处理 ROM 上传
+    // 读取存档 (F9)
+    async function loadGame() {
+        if (!nes || !currentRomId) {
+            alert('请先打开一个服务器上的游戏');
+            return;
+        }
+        if (!isLoggedIn()) {
+            alert('请先登录');
+            openModal('loginModal');
+            return;
+        }
+        try {
+            const r = await fetch(`${API_BASE}/api/save/${currentRomId}`, {
+                headers: authHeaders()
+            });
+            const res = await r.json();
+            if (!res.success) throw new Error(res.error || '没有存档');
+            nes.fromJSON(JSON.parse(res.data));
+            flashMsg('📂 读档成功');
+        } catch (e) {
+            console.error('读档失败:', e);
+            alert(`读档失败: ${e.message}`);
+        }
+    }
+
+    // 短暂提示
+    function flashMsg(text) {
+        const overlay = document.querySelector('.screen-wrapper');
+        let tip = document.getElementById('flashTip');
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'flashTip';
+            tip.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#4ade80;padding:8px 16px;border-radius:8px;font-size:14px;z-index:99;pointer-events:none;transition:opacity 0.5s;';
+            overlay.appendChild(tip);
+        }
+        tip.textContent = text;
+        tip.style.opacity = '1';
+        clearTimeout(tip._timer);
+        tip._timer = setTimeout(() => { tip.style.opacity = '0'; }, 1500);
+    }
+
+    // ==================== 文件管理 ====================
+
+    function showDeleteConfirm(rom) {
+        const modal = document.getElementById('deleteModal');
+        document.getElementById('deleteConfirmText').textContent = `确定要删除「${rom.name}」吗？游戏文件和存档都会删除，不可恢复。`;
+        modal._rom = rom;
+        openModal('deleteModal');
+    }
+
+    async function confirmDelete() {
+        const modal = document.getElementById('deleteModal');
+        const rom = modal._rom;
+        if (!rom) return;
+        try {
+            const r = await fetch(`${API_BASE}/api/roms/${rom.id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+            const res = await r.json();
+            if (!res.success) throw new Error(res.error || '删除失败');
+            flashMsg(`🗑️ 已删除: ${rom.name}`);
+            loadServerRoms();
+        } catch (e) {
+            alert(`删除失败: ${e.message}`);
+        } finally {
+            closeModal('deleteModal');
+        }
+    }
+
+    // ==================== 上传 ====================
+
     function handleRomUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
+
+        if (!isLoggedIn()) {
+            alert('请先登录后再上传 ROM');
+            openModal('loginModal');
+            event.target.value = '';
+            return;
+        }
+
         console.log(`上传 ROM: ${file.name}`);
-        
+
         const formData = new FormData();
         formData.append('rom', file);
-        
-        // 显示上传中状态
+
         if (uploadStatus) {
             uploadStatus.textContent = '上传中...';
             uploadStatus.style.display = 'block';
+            uploadStatus.style.color = 'var(--text-secondary)';
         }
-        
-        fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData })
+
+        fetch(`${API_BASE}/api/upload`, { method: 'POST', headers: authHeaders(), body: formData })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    romData = null; // 不存内存，从服务器加载
+                    romData = null;
                     romName = data.rom.name;
-                    romId = data.rom.id;
-                    
+                    currentRomId = data.rom.id;
+
                     if (uploadStatus) {
                         uploadStatus.textContent = `✅ 上传成功: ${file.name}`;
                         uploadStatus.style.color = 'var(--success)';
                     }
-                    
-                    // 重新加载 ROM 列表
+
                     loadServerRoms();
-                    
-                    // 显示模拟器区域
+
                     document.getElementById('emulatorSection').classList.add('active');
                     screenOverlay.classList.remove('hidden');
                     screenOverlay.querySelector('h3').textContent = 'ROM 已上传';
@@ -288,19 +479,117 @@
                     uploadStatus.textContent = `❌ 上传失败: ${e.message}`;
                     uploadStatus.style.color = '#ef4444';
                 }
-                alert(`上传失败: ${e.message}\n\n如需服务器存储功能，请部署后端服务后修改 API_BASE 地址。`);
+                alert(`上传失败: ${e.message}`);
             });
-        
-        // 清空 input 以便重复上传同名文件
+
         event.target.value = '';
     }
 
-    // 设置键盘控制
+    // ==================== 弹窗 ====================
+
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    function setupModalClose() {
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => closeModal(btn.dataset.modal));
+        });
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.classList.add('hidden');
+            });
+        });
+    }
+
+    // ==================== 事件监听 ====================
+
+    function setupEventListeners() {
+        romUpload.addEventListener('change', handleRomUpload);
+        resetBtn.addEventListener('click', resetGame);
+        pauseBtn.addEventListener('click', togglePause);
+        saveBtn.addEventListener('click', saveGame);
+        loadBtn.addEventListener('click', loadGame);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+        // 登录
+        loginBtn.addEventListener('click', () => { document.getElementById('loginError').style.display = 'none'; openModal('loginModal'); });
+        document.getElementById('loginConfirmBtn').addEventListener('click', async () => {
+            const pwd = document.getElementById('loginPassword').value;
+            const errEl = document.getElementById('loginError');
+            try {
+                const res = await apiLogin(pwd);
+                closeModal('loginModal');
+                document.getElementById('loginPassword').value = '';
+                renderGameGrid();
+                uploadStatus && (uploadStatus.textContent = '✅ 登录成功', uploadStatus.style.display = 'block');
+                setTimeout(() => { uploadStatus && (uploadStatus.style.display = 'none'); }, 2000);
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+            }
+        });
+        document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('loginConfirmBtn').click();
+        });
+
+        logoutBtn.addEventListener('click', () => { logout(); renderGameGrid(); });
+
+        // 修改密码
+        changePwdBtn.addEventListener('click', () => {
+            document.getElementById('pwdError').style.display = 'none';
+            openModal('changePwdModal');
+        });
+        document.getElementById('changePwdConfirmBtn').addEventListener('click', async () => {
+            const oldPwd = document.getElementById('oldPassword').value;
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+            const errEl = document.getElementById('pwdError');
+            if (newPwd !== confirmPwd) {
+                errEl.textContent = '两次输入的新密码不一致';
+                errEl.style.display = 'block';
+                return;
+            }
+            try {
+                const r = await fetch(`${API_BASE}/api/change-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd })
+                });
+                const res = await r.json();
+                if (!res.success) throw new Error(res.error || '修改失败');
+                if (res.token) {
+                    token = res.token;
+                    localStorage.setItem(TOKEN_KEY, token);
+                }
+                closeModal('changePwdModal');
+                document.getElementById('oldPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                alert('✅ 密码修改成功');
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+            }
+        });
+
+        // 删除确认
+        document.getElementById('deleteConfirmBtn').addEventListener('click', confirmDelete);
+    }
+
+    // ==================== 键盘控制 ====================
+
     function setupKeyboardControls() {
         document.addEventListener('keydown', function(e) {
             if (e.key.toLowerCase() === 'r') resetGame();
             if (e.key === ' ') { e.preventDefault(); togglePause(); }
-            
+            if (e.key === 'F5') { e.preventDefault(); saveGame(); }
+            if (e.key === 'F9') { e.preventDefault(); loadGame(); }
+
             if (nes) {
                 const c = nes.controllers[1] || nes.Controller1;
                 switch(e.key) {
@@ -315,7 +604,7 @@
                 }
             }
         });
-        
+
         document.addEventListener('keyup', function(e) {
             if (nes) {
                 const c = nes.controllers[1] || nes.Controller1;
@@ -333,7 +622,124 @@
         });
     }
 
-    // 页面加载完成后初始化
+    // ==================== 触摸控制（虚拟手柄） ====================
+
+    function setupTouchControls() {
+        // 检测触摸设备
+        isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+
+        // 显示虚拟手柄（游戏运行时）
+        if (isTouch) {
+            emulatorSection.addEventListener('mouseover', () => {});
+            // 在开始游戏时显示
+            const origStartGame = startGame;
+            startGame = function(rom, name) {
+                origStartGame(rom, name);
+                virtualGamepad.style.display = 'flex';
+            };
+        }
+
+        // 给虚拟按键绑定触摸事件
+        document.querySelectorAll('.gp-btn').forEach(btn => {
+            const btns = {
+                up: Controller.BUTTON_UP,
+                down: Controller.BUTTON_DOWN,
+                left: Controller.BUTTON_LEFT,
+                right: Controller.BUTTON_RIGHT,
+                a: Controller.BUTTON_A,
+                b: Controller.BUTTON_B,
+                start: Controller.BUTTON_START,
+                select: Controller.BUTTON_SELECT
+            };
+            const code = btns[btn.dataset.btn];
+            if (code === undefined) return;
+
+            const press = (e) => {
+                e.preventDefault();
+                if (nes) {
+                    const c = nes.controllers[1] || nes.Controller1;
+                    c.buttonDown(code);
+                    btn.classList.add('pressed');
+                }
+            };
+            const release = (e) => {
+                e.preventDefault();
+                if (nes) {
+                    const c = nes.controllers[1] || nes.Controller1;
+                    c.buttonUp(code);
+                    btn.classList.remove('pressed');
+                }
+            };
+
+            btn.addEventListener('touchstart', press, { passive: false });
+            btn.addEventListener('touchend', release, { passive: false });
+            btn.addEventListener('touchcancel', release, { passive: false });
+            // 鼠标兼容（桌面调试）
+            btn.addEventListener('mousedown', press);
+            btn.addEventListener('mouseup', release);
+            btn.addEventListener('mouseleave', release);
+        });
+    }
+
+    // ==================== 手柄控制 (Gamepad API) ====================
+
+    let prevGamepadButtons = {};
+
+    function setupGamepad() {
+        window.addEventListener('gamepadconnected', (e) => {
+            gamepadIndex = e.gamepad.index;
+            gamepadHint.style.display = 'block';
+            console.log('手柄已连接:', e.gamepad.id);
+        });
+        window.addEventListener('gamepaddisconnected', (e) => {
+            if (gamepadIndex === e.gamepad.index) {
+                gamepadIndex = null;
+                gamepadHint.style.display = 'none';
+                console.log('手柄已断开');
+            }
+        });
+    }
+
+    function pollGamepad() {
+        if (!nes || gamepadIndex === null) return;
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const pad = pads[gamepadIndex];
+        if (!pad) return;
+
+        const c = nes.controllers[1] || nes.Controller1;
+        if (!c) return;
+
+        // 标准映射：0=A,1=B,2=X,3=Y,4=LB,5=RB,6=LT,7=RT,8=Select,9=Start,12=Up,13=Down,14=Left,15=Right
+        const map = [
+            { key: 'a_pressed', btn: Controller.BUTTON_A, gamepadBtn: 0, axis: null },   // A
+            { key: 'b_pressed', btn: Controller.BUTTON_B, gamepadBtn: 1, axis: null },   // B
+            { key: 'select_pressed', btn: Controller.BUTTON_SELECT, gamepadBtn: 8, axis: null },
+            { key: 'start_pressed', btn: Controller.BUTTON_START, gamepadBtn: 9, axis: null },
+            { key: 'up_pressed', btn: Controller.BUTTON_UP, gamepadBtn: 12, axis: { axis: 1, sign: -1 } },
+            { key: 'down_pressed', btn: Controller.BUTTON_DOWN, gamepadBtn: 13, axis: { axis: 1, sign: 1 } },
+            { key: 'left_pressed', btn: Controller.BUTTON_LEFT, gamepadBtn: 14, axis: { axis: 0, sign: -1 } },
+            { key: 'right_pressed', btn: Controller.BUTTON_RIGHT, gamepadBtn: 15, axis: { axis: 0, sign: 1 } }
+        ];
+
+        map.forEach(item => {
+            let pressed = false;
+            if (pad.buttons[item.gamepadBtn]) {
+                pressed = pad.buttons[item.gamepadBtn].pressed;
+            }
+            if (item.axis) {
+                const v = pad.axes[item.axis.axis];
+                if (Math.abs(v) > 0.4 && v * item.axis.sign > 0) pressed = true;
+                // 摇杆干扰修正：只用十字键或摇杆其一
+            }
+            const prev = prevGamepadButtons[item.key] || false;
+            if (pressed && !prev) c.buttonDown(item.btn);
+            if (!pressed && prev) c.buttonUp(item.btn);
+            prevGamepadButtons[item.key] = pressed;
+        });
+    }
+
+    // ==================== 启动 ====================
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
