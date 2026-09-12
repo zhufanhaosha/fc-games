@@ -658,18 +658,33 @@ footer {
     animation: pulse 2s infinite;
 }
 
-/* 虚拟手柄 */
+/* 虚拟手柄（悬浮在游戏画面下方） */
 .virtual-gamepad {
     display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     justify-content: space-between;
     align-items: flex-end;
-    max-width: 512px;
-    margin: 1.5rem auto 0;
-    padding: 1rem 0.5rem;
+    padding: 0.8rem 1rem;
     gap: 1rem;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.virtual-gamepad .gp-dpad,
+.virtual-gamepad .gp-actions {
+    pointer-events: auto;
+}
+
+/* 全屏时半透明淡化 */
+.screen-wrapper:fullscreen .virtual-gamepad {
+    opacity: 0.55;
+    padding: 1rem 1.5rem;
 }
 
 .gp-dpad {
@@ -755,19 +770,58 @@ footer {
         flex-direction: column;
         align-items: flex-start;
     }
+    /* 游戏区域去掉大圆角和内边距，屏幕占满宽度 */
+    .emulator-container {
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    .screen-wrapper {
+        max-width: 100%;
+        width: 100%;
+        border-radius: 0;
+        margin-bottom: 0.5rem;
+    }
+    /* 虚拟手柄：悬浮在画面底部 */
     .virtual-gamepad {
-        gap: 0.5rem;
+        gap: 0.25rem;
+        padding: 0.5rem 0.6rem;
     }
     .gp-dpad {
-        grid-template-columns: repeat(3, 48px);
-        grid-template-rows: repeat(3, 48px);
+        grid-template-columns: repeat(3, 44px);
+        grid-template-rows: repeat(3, 44px);
+        gap: 3px;
     }
     .gp-btn {
-        width: 48px;
-        height: 48px;
-        font-size: 0.9rem;
+        width: 44px;
+        height: 44px;
+        font-size: 0.85rem;
     }
-    .gp-a { width: 56px; height: 56px; }
-    .gp-b { width: 46px; height: 46px; }
-    .gp-start, .gp-select { width: 44px; height: 28px; }
+    .gp-a { width: 52px; height: 52px; font-size: 1.1rem; }
+    .gp-b { width: 42px; height: 42px; font-size: 0.95rem; }
+    .gp-start, .gp-select { width: 40px; height: 26px; font-size: 0.65rem; border-radius: 13px; }
+    .gp-actions { gap: 6px; }
+    /* 操控说明和按钮在手机上精简边距 */
+    .controls-info { margin-bottom: 1rem; }
+    .game-actions { gap: 0.5rem; }
+    .game-actions .btn { padding: 0.6rem 1rem; font-size: 0.9rem; }
+    #saveBtn, #loadBtn { min-width: 90px; }
+}
+
+/* 手机全屏：画面横向占满，虚拟键淡化悬浮 */
+@media (max-width: 768px) {
+    .screen-wrapper:fullscreen .virtual-gamepad {
+        opacity: 0.5;
+        padding: 0.8rem 1rem;
+    }
+    .screen-wrapper:fullscreen .gp-btn {
+        width: 52px;
+        height: 52px;
+        font-size: 1rem;
+    }
+    .screen-wrapper:fullscreen .gp-a { width: 58px; height: 58px; }
+    .screen-wrapper:fullscreen .gp-b { width: 48px; height: 48px; }
+    .screen-wrapper:fullscreen .gp-start, 
+    .screen-wrapper:fullscreen .gp-select { width: 44px; height: 28px; }
+    /* 全屏时隐藏页面上其他干扰，只留画面 */
+    .screen-wrapper:fullscreen + * { display: none; }
 }
