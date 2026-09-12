@@ -246,18 +246,19 @@
             const offCtx = offscreen.getContext('2d');
             imageData = offCtx.createImageData(256, 240);
 
+            // 帧缓冲：jsnes 输出为 BGR（0xBBGGRR），官方用 Uint32 直接 OR alpha，
+            // 再以 Uint8ClampedArray 视图读取，字节序由浏览器自动处理，避免红蓝对调
+            const frameBuf = new ArrayBuffer(256 * 240 * 4);
+            const frameBuf8 = new Uint8ClampedArray(frameBuf);
+            const frameBuf32 = new Uint32Array(frameBuf);
+
             nes = new NES({
                 sampleRate: 48000,
                 onFrame: function(frameBuffer) {
-                    const data = imageData.data;
                     for (let i = 0; i < 61440; i++) {
-                        const p = frameBuffer[i];
-                        const idx = i * 4;
-                        data[idx]     = (p >> 16) & 0xFF;
-                        data[idx + 1] = (p >> 8) & 0xFF;
-                        data[idx + 2] = p & 0xFF;
-                        data[idx + 3] = 0xFF;
+                        frameBuf32[i] = 0xff000000 | frameBuffer[i];
                     }
+                    imageData.data.set(frameBuf8);
                     offCtx.putImageData(imageData, 0, 0);
                     canvasCtx.drawImage(offscreen, 0, 0);
                 },
