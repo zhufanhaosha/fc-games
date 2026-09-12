@@ -680,7 +680,7 @@ footer {
     bottom: 0;
     margin: 0;
     padding: 0.6rem 0.8rem;
-    opacity: 0.55;
+    opacity: 0.88;
     z-index: 20;
     pointer-events: none;
     justify-content: flex-start;
@@ -966,18 +966,24 @@ footer {
 /* 手机全屏：画面横向占满，虚拟键淡化悬浮 */
 @media (max-width: 768px) {
     .screen-wrapper.fullscreen-gamepad .virtual-gamepad {
-        opacity: 0.5;
+        opacity: 0.88;
         padding: 0.8rem 1rem;
     }
     .screen-wrapper.fullscreen-gamepad .gp-btn {
         width: 52px;
         height: 52px;
         font-size: 1rem;
+        background: rgba(99, 102, 241, 0.85);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
     }
-    .screen-wrapper.fullscreen-gamepad .gp-a { width: 58px; height: 58px; }
-    .screen-wrapper.fullscreen-gamepad .gp-b { width: 48px; height: 48px; }
+    .screen-wrapper.fullscreen-gamepad .gp-a { width: 58px; height: 58px; background: rgba(236, 72, 153, 0.9); }
+    .screen-wrapper.fullscreen-gamepad .gp-b { width: 48px; height: 48px; background: rgba(34, 211, 238, 0.9); }
+    .screen-wrapper.fullscreen-gamepad .gp-aa { background: rgba(236, 72, 153, 0.75); }
+    .screen-wrapper.fullscreen-gamepad .gp-bb { background: rgba(34, 211, 238, 0.75); }
     .screen-wrapper.fullscreen-gamepad .gp-start, 
-    .screen-wrapper.fullscreen-gamepad .gp-select { width: 44px; height: 28px; }
+    .screen-wrapper.fullscreen-gamepad .gp-select { width: 44px; height: 28px; background: rgba(148, 163, 184, 0.85); }
     /* 全屏时隐藏页面上其他干扰，只留画面 */
     .screen-wrapper:fullscreen + * { display: none; }
 }

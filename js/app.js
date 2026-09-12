@@ -1011,11 +1011,15 @@
         // 显示虚拟手柄（游戏运行时）
         if (isTouch) {
             emulatorSection.addEventListener('mouseover', () => {});
-            // 在开始游戏时显示
+            // 在开始游戏时显示（未连接手柄时才显示虚拟按键）
             const origStartGame = startGame;
             startGame = function(rom, name) {
                 origStartGame(rom, name);
-                virtualGamepad.style.display = 'flex';
+                if (gamepadIndex === null) {
+                    virtualGamepad.style.display = 'flex';
+                } else {
+                    virtualGamepad.style.display = 'none';
+                }
             };
         }
 
@@ -1071,6 +1075,8 @@
         window.addEventListener('gamepadconnected', (e) => {
             gamepadIndex = e.gamepad.index;
             gamepadHint.style.display = 'block';
+            // 连接手柄后自动隐藏虚拟按键（触摸屏不再需要）
+            if (virtualGamepad) virtualGamepad.style.display = 'none';
             console.log('手柄已连接:', e.gamepad.id);
         });
         window.addEventListener('gamepaddisconnected', (e) => {
@@ -1092,9 +1098,12 @@
         if (!c) return;
 
         // 标准映射：0=A,1=B,2=X,3=Y,4=LB,5=RB,6=LT,7=RT,8=Select,9=Start,12=Up,13=Down,14=Left,15=Right
+        // X → AA(连发A)  Y → BB(连发B)
         const map = [
-            { key: 'a_pressed', btn: Controller.BUTTON_A, gamepadBtn: 0, axis: null },   // A
-            { key: 'b_pressed', btn: Controller.BUTTON_B, gamepadBtn: 1, axis: null },   // B
+            { key: 'a_pressed', btn: Controller.BUTTON_A, gamepadBtn: 0, axis: null },        // A
+            { key: 'b_pressed', btn: Controller.BUTTON_B, gamepadBtn: 1, axis: null },        // B
+            { key: 'aa_pressed', btn: Controller.BUTTON_TURBO_A, gamepadBtn: 2, axis: null }, // X = AA 连发A
+            { key: 'bb_pressed', btn: Controller.BUTTON_TURBO_B, gamepadBtn: 3, axis: null }, // Y = BB 连发B
             { key: 'select_pressed', btn: Controller.BUTTON_SELECT, gamepadBtn: 8, axis: null },
             { key: 'start_pressed', btn: Controller.BUTTON_START, gamepadBtn: 9, axis: null },
             { key: 'up_pressed', btn: Controller.BUTTON_UP, gamepadBtn: 12, axis: { axis: 1, sign: -1 } },
