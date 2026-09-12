@@ -612,42 +612,54 @@
     }
 
     // ==================== 键盘控制 ====================
-
+    // 键位方案（参照任天堂手柄）：
+    //   W/↑ = 上   A/← = 左   S/↓ = 下   D/→ = 右
+    //   J = A 键（右手位）  K = B 键（左手位）
+    //   Enter = Start   Shift = Select
+    //   F5 = 存档  F9 = 读档  R = 重置  Space = 暂停
     function setupKeyboardControls() {
-        document.addEventListener('keydown', function(e) {
-            if (e.key.toLowerCase() === 'r') resetGame();
-            if (e.key === ' ') { e.preventDefault(); togglePause(); }
-            if (e.key === 'F5') { e.preventDefault(); saveGame(); }
-            if (e.key === 'F9') { e.preventDefault(); loadGame(); }
+        // 用 e.code 识别物理按键，不受中文输入法/键盘布局影响
+        const KEYMAP_DOWN = {
+            KeyW: Controller.BUTTON_UP,
+            KeyS: Controller.BUTTON_DOWN,
+            KeyA: Controller.BUTTON_LEFT,
+            KeyD: Controller.BUTTON_RIGHT,
+            ArrowUp: Controller.BUTTON_UP,
+            ArrowDown: Controller.BUTTON_DOWN,
+            ArrowLeft: Controller.BUTTON_LEFT,
+            ArrowRight: Controller.BUTTON_RIGHT,
+            KeyJ: Controller.BUTTON_A,
+            KeyK: Controller.BUTTON_B,
+            Enter: Controller.BUTTON_START,
+            ShiftLeft: Controller.BUTTON_SELECT,
+            ShiftRight: Controller.BUTTON_SELECT
+        };
 
-            if (nes) {
+        function isTyping() {
+            const el = document.activeElement;
+            return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (isTyping()) return;
+
+            if (e.key.toLowerCase() === 'r') { e.preventDefault(); resetGame(); return; }
+            if (e.key === ' ') { e.preventDefault(); togglePause(); return; }
+            if (e.key === 'F5') { e.preventDefault(); saveGame(); return; }
+            if (e.key === 'F9') { e.preventDefault(); loadGame(); return; }
+
+            if (nes && KEYMAP_DOWN[e.code] !== undefined) {
+                e.preventDefault();
                 const c = nes.controllers[1] || nes.Controller1;
-                switch(e.key) {
-                    case 'ArrowUp': c.buttonDown(Controller.BUTTON_UP); break;
-                    case 'ArrowDown': c.buttonDown(Controller.BUTTON_DOWN); break;
-                    case 'ArrowLeft': c.buttonDown(Controller.BUTTON_LEFT); break;
-                    case 'ArrowRight': c.buttonDown(Controller.BUTTON_RIGHT); break;
-                    case 'z': case 'Z': c.buttonDown(Controller.BUTTON_A); break;
-                    case 'x': case 'X': c.buttonDown(Controller.BUTTON_B); break;
-                    case 'Enter': c.buttonDown(Controller.BUTTON_START); break;
-                    case 'Shift': c.buttonDown(Controller.BUTTON_SELECT); break;
-                }
+                c.buttonDown(KEYMAP_DOWN[e.code]);
             }
         });
 
         document.addEventListener('keyup', function(e) {
-            if (nes) {
+            if (isTyping()) return;
+            if (nes && KEYMAP_DOWN[e.code] !== undefined) {
                 const c = nes.controllers[1] || nes.Controller1;
-                switch(e.key) {
-                    case 'ArrowUp': c.buttonUp(Controller.BUTTON_UP); break;
-                    case 'ArrowDown': c.buttonUp(Controller.BUTTON_DOWN); break;
-                    case 'ArrowLeft': c.buttonUp(Controller.BUTTON_LEFT); break;
-                    case 'ArrowRight': c.buttonUp(Controller.BUTTON_RIGHT); break;
-                    case 'z': case 'Z': c.buttonUp(Controller.BUTTON_A); break;
-                    case 'x': case 'X': c.buttonUp(Controller.BUTTON_B); break;
-                    case 'Enter': c.buttonUp(Controller.BUTTON_START); break;
-                    case 'Shift': c.buttonUp(Controller.BUTTON_SELECT); break;
-                }
+                c.buttonUp(KEYMAP_DOWN[e.code]);
             }
         });
     }
