@@ -56,7 +56,7 @@
                     <div class="gamepad-hint" id="gamepadHint" style="display:none;">🎮 已连接手柄</div>
                 </div>
 
-                <!-- 虚拟手柄（触摸屏，位于游戏画面下方） -->
+                <!-- 虚拟手柄（小霸王学习机风格） -->
                 <div class="virtual-gamepad" id="virtualGamepad" style="display:none;">
                     <div class="gp-dpad">
                         <button class="gp-btn gp-up" data-btn="up">▲</button>
@@ -64,28 +64,40 @@
                         <button class="gp-btn gp-right" data-btn="right">▶</button>
                         <button class="gp-btn gp-down" data-btn="down">▼</button>
                     </div>
+                    <div class="gp-middle">
+                        <button class="gp-btn gp-select" data-btn="select">SEL</button>
+                        <button class="gp-btn gp-start" data-btn="start">STA</button>
+                    </div>
                     <div class="gp-actions">
-                        <button class="gp-btn gp-start" data-btn="start">START</button>
-                        <button class="gp-btn gp-select" data-btn="select">SELECT</button>
                         <button class="gp-btn gp-b" data-btn="b">B</button>
                         <button class="gp-btn gp-a" data-btn="a">A</button>
+                        <button class="gp-btn gp-bb" data-btn="bb">BB</button>
+                        <button class="gp-btn gp-aa" data-btn="aa">AA</button>
                     </div>
                 </div>
 
                 <div class="controls-info">
-                    <h3>操控说明</h3>
+                    <h3>操控说明 <button id="customKeysBtn" class="btn btn-small">⌨️ 自定义按键</button></h3>
                     <div class="controls-grid">
                         <div class="control-item">
                             <span class="key">W A S D</span>
                             <span class="desc">方向上 左 下 右</span>
                         </div>
                         <div class="control-item">
-                            <span class="key">J</span>
+                            <span class="key">K</span>
                             <span class="desc">A 键 (跳跃/确认)</span>
                         </div>
                         <div class="control-item">
-                            <span class="key">K</span>
+                            <span class="key">J</span>
                             <span class="desc">B 键 (射击/加速)</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">I</span>
+                            <span class="desc">AA 连发 A 键</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">U</span>
+                            <span class="desc">BB 连发 B 键</span>
                         </div>
                         <div class="control-item">
                             <span class="key">Enter</span>
@@ -174,6 +186,20 @@
             <div class="modal-actions">
                 <button class="btn btn-danger" id="deleteConfirmBtn">删除</button>
                 <button class="btn btn-secondary modal-close" data-modal="deleteModal">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义按键弹窗 -->
+    <div class="modal-overlay hidden" id="keymapModal">
+        <div class="modal modal-wide">
+            <h3>⌨️ 自定义按键</h3>
+            <p class="modal-hint">点击按键后按下想绑定为对应功能的键盘按键（鼠标在表格中点击对应行即可开始录制）</p>
+            <div class="keymap-list" id="keymapList"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="keymapResetBtn">恢复默认</button>
+                <button class="btn btn-primary" id="keymapSaveBtn">保存</button>
+                <button class="btn btn-secondary modal-close" data-modal="keymapModal">取消</button>
             </div>
         </div>
     </div>

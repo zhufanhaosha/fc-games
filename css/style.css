@@ -768,6 +768,133 @@ footer {
     min-width: 110px;
 }
 
+/* 自定义按键弹窗 */
+.modal-wide {
+    max-width: 500px;
+}
+
+.keymap-list {
+    max-height: 320px;
+    overflow-y: auto;
+    margin: 0.5rem 0 1rem;
+    border: 1px solid var(--bg-hover);
+    border-radius: 8px;
+}
+
+.keymap-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.keymap-row:last-child {
+    border-bottom: none;
+}
+
+.keymap-row:hover {
+    background: var(--bg-hover);
+}
+
+.keymap-row.recording {
+    background: rgba(99, 102, 241, 0.2);
+    border: 1px solid var(--primary);
+}
+
+.keymap-name {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.keymap-key {
+    background: var(--bg-dark);
+    color: var(--accent);
+    padding: 0.2rem 0.75rem;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    font-weight: bold;
+    min-width: 60px;
+    text-align: center;
+}
+
+.keymap-row.recording .keymap-key {
+    background: var(--primary);
+    color: #fff;
+    animation: pulse 1s infinite;
+}
+
+/* 虚拟手柄：小霸王风格 A/B/AA/BB + 中间 SELECT/START */
+.virtual-gamepad {
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.gp-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+}
+
+.gp-actions {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(2, auto);
+    gap: 8px 10px;
+    align-items: center;
+}
+
+.gp-a { grid-column: 2; grid-row: 1; }
+.gp-b { grid-column: 1; grid-row: 1; }
+.gp-aa { grid-column: 2; grid-row: 2; }
+.gp-bb { grid-column: 1; grid-row: 2; }
+
+.gp-b, .gp-a {
+    width: 62px;
+    height: 62px;
+}
+
+.gp-aa, .gp-bb {
+    width: 50px;
+    height: 50px;
+    font-size: 0.9rem;
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+}
+
+.gp-aa {
+    background: rgba(236, 72, 153, 0.4);
+    color: #fbcfe8;
+}
+
+.gp-bb {
+    background: rgba(34, 211, 238, 0.4);
+    color: #a5f3fc;
+}
+
+.gp-aa.pressed, .gp-aa:active {
+    background: var(--secondary);
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.6);
+}
+
+.gp-bb.pressed, .gp-bb:active {
+    background: var(--accent);
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.6);
+}
+
+.gp-start, .gp-select {
+    width: 50px;
+    height: 30px;
+    border-radius: 16px;
+    background: rgba(148, 163, 184, 0.4);
+    font-size: 0.7rem;
+}
+
 @media (max-width: 768px) {
     .header-row {
         flex-direction: column;

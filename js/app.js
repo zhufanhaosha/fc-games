@@ -794,32 +794,148 @@
 
         // 删除确认
         document.getElementById('deleteConfirmBtn').addEventListener('click', confirmDelete);
+
+        // 自定义按键
+        document.getElementById('customKeysBtn').addEventListener('click', openKeymapModal);
+        document.getElementById('keymapResetBtn').addEventListener('click', () => {
+            resetKeymap();
+            renderKeymapList();
+        });
+        document.getElementById('keymapSaveBtn').addEventListener('click', () => {
+            saveKeymap(keymapDraft);
+            closeModal('keymapModal');
+            alert('✅ 按键设置已保存');
+        });
     }
 
+    // ==================== 自定义按键设置 ====================
+    let keymapDraft = null;
+    let keymapRecording = null; // 正在录制的功能名
+
+    function openKeymapModal() {
+        keymapDraft = { ...getKeymap() };
+        keymapRecording = null;
+        renderKeymapList();
+        openModal('keymapModal');
+    }
+
+    function renderKeymapList() {
+        const list = document.getElementById('keymapList');
+        list.innerHTML = '';
+        const order = ['up', 'down', 'left', 'right', 'a', 'b', 'aa', 'bb', 'start', 'select'];
+        order.forEach(action => {
+            const row = document.createElement('div');
+            row.className = 'keymap-row' + (keymapRecording === action ? ' recording' : '');
+            row.innerHTML = `
+                <span class="keymap-name">${KEY_NAMES[action]}</span>
+                <span class="keymap-key" data-action="${action}">${keymapRecording === action ? '请按键...' : formatKeyName(keymapDraft[action])}</span>
+            `;
+            row.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startKeymapRecording(action);
+            });
+            list.appendChild(row);
+        });
+    }
+
+    function startKeymapRecording(action) {
+        keymapRecording = action;
+        renderKeymapList();
+    }
+
+    // 监听按键录入
+    document.addEventListener('keydown', function(e) {
+        if (!keymapRecording || document.getElementById('keymapModal').classList.contains('hidden')) return;
+        e.preventDefault();
+        const code = e.code;
+        // 检查是否与已有功能冲突
+        const conflict = Object.entries(keymapDraft).find(([k, v]) => v === code && k !== keymapRecording);
+        if (conflict) {
+            delete keymapDraft[conflict[0]];
+        }
+        keymapDraft[keymapRecording] = code;
+        keymapRecording = null;
+        renderKeymapList();
+    });
+
     // ==================== 键盘控制 ====================
-    // 键位方案（参照任天堂手柄）：
-    //   W/↑ = 上   A/← = 左   S/↓ = 下   D/→ = 右
-    //   J = A 键（右手位）  K = B 键（左手位）
+    // 默认键位（小霸王风格）：
+    //   方向：W/A/S/D 或 方向键
+    //   A 键 = K   B 键 = J   AA 连发 = I   BB 连发 = U
     //   Enter = Start   Shift = Select
     //   F5 = 存档  F9 = 读档  R = 重置  Space = 暂停
+    const DEFAULT_KEYMAP = {
+        up: 'KeyW',
+        down: 'KeyS',
+        left: 'KeyA',
+        right: 'KeyD',
+        a: 'KeyK',
+        b: 'KeyJ',
+        aa: 'KeyI',
+        bb: 'KeyU',
+        start: 'Enter',
+        select: 'ShiftLeft'
+    };
+    const KEYMAP_STORAGE = 'fc_games_keymap';
+    const KEY_NAMES = {
+        up: '方向上', down: '方向下', left: '方向左', right: '方向右',
+        a: 'A 键', b: 'B 键', aa: 'AA 连发', bb: 'BB 连发',
+        start: 'Start', select: 'Select'
+    };
+    // 功能 → 控制器按钮
+    const KEYMAP_ACTIONS = {
+        up: Controller.BUTTON_UP,
+        down: Controller.BUTTON_DOWN,
+        left: Controller.BUTTON_LEFT,
+        right: Controller.BUTTON_RIGHT,
+        a: Controller.BUTTON_A,
+        b: Controller.BUTTON_B,
+        aa: Controller.BUTTON_TURBO_A,
+        bb: Controller.BUTTON_TURBO_B,
+        start: Controller.BUTTON_START,
+        select: Controller.BUTTON_SELECT
+    };
+    let customKeymap = null; // 用户自定义键位，null 表示用默认
+
+    function loadKeymap() {
+        try {
+            const saved = store.get(KEYMAP_STORAGE);
+            if (saved) customKeymap = JSON.parse(saved);
+        } catch (e) { customKeymap = null; }
+    }
+    function saveKeymap(map) {
+        customKeymap = map;
+        store.set(KEYMAP_STORAGE, JSON.stringify(map));
+    }
+    function resetKeymap() {
+        customKeymap = null;
+        store.remove(KEYMAP_STORAGE);
+    }
+    function getKeymap() {
+        return customKeymap || DEFAULT_KEYMAP;
+    }
+    // e.code → 功能名
+    function codeToAction(code) {
+        const map = getKeymap();
+        for (const [action, keyCode] of Object.entries(map)) {
+            if (keyCode === code) return action;
+        }
+        return null;
+    }
+    // 格式化按键名（用于自定义界面显示）
+    function formatKeyName(code) {
+        const names = {
+            KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D',
+            KeyJ: 'J', KeyK: 'K', KeyI: 'I', KeyU: 'U',
+            Enter: 'Enter', ShiftLeft: 'Shift', ShiftRight: 'Shift',
+            ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+            Space: 'Space', F5: 'F5', F9: 'F9', KeyR: 'R'
+        };
+        return names[code] || code.replace(/^Key/, '').replace(/^Digit/, '');
+    }
+
     function setupKeyboardControls() {
         // 用 e.code 识别物理按键，不受中文输入法/键盘布局影响
-        const KEYMAP_DOWN = {
-            KeyW: Controller.BUTTON_UP,
-            KeyS: Controller.BUTTON_DOWN,
-            KeyA: Controller.BUTTON_LEFT,
-            KeyD: Controller.BUTTON_RIGHT,
-            ArrowUp: Controller.BUTTON_UP,
-            ArrowDown: Controller.BUTTON_DOWN,
-            ArrowLeft: Controller.BUTTON_LEFT,
-            ArrowRight: Controller.BUTTON_RIGHT,
-            KeyJ: Controller.BUTTON_A,
-            KeyK: Controller.BUTTON_B,
-            Enter: Controller.BUTTON_START,
-            ShiftLeft: Controller.BUTTON_SELECT,
-            ShiftRight: Controller.BUTTON_SELECT
-        };
-
         function isTyping() {
             const el = document.activeElement;
             return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
@@ -833,18 +949,20 @@
             if (e.key === 'F5') { e.preventDefault(); saveGame(); return; }
             if (e.key === 'F9') { e.preventDefault(); loadGame(); return; }
 
-            if (nes && KEYMAP_DOWN[e.code] !== undefined) {
+            const action = codeToAction(e.code);
+            if (nes && action && KEYMAP_ACTIONS[action] !== undefined) {
                 e.preventDefault();
                 const c = nes.controllers[1] || nes.Controller1;
-                c.buttonDown(KEYMAP_DOWN[e.code]);
+                c.buttonDown(KEYMAP_ACTIONS[action]);
             }
         });
 
         document.addEventListener('keyup', function(e) {
             if (isTyping()) return;
-            if (nes && KEYMAP_DOWN[e.code] !== undefined) {
+            const action = codeToAction(e.code);
+            if (nes && action && KEYMAP_ACTIONS[action] !== undefined) {
                 const c = nes.controllers[1] || nes.Controller1;
-                c.buttonUp(KEYMAP_DOWN[e.code]);
+                c.buttonUp(KEYMAP_ACTIONS[action]);
             }
         });
     }
@@ -875,6 +993,8 @@
                 right: Controller.BUTTON_RIGHT,
                 a: Controller.BUTTON_A,
                 b: Controller.BUTTON_B,
+                aa: Controller.BUTTON_TURBO_A,
+                bb: Controller.BUTTON_TURBO_B,
                 start: Controller.BUTTON_START,
                 select: Controller.BUTTON_SELECT
             };
