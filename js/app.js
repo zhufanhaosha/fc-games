@@ -28,6 +28,28 @@
     const TOKEN_KEY_SESSION = 'fc_games_token_session';
     const REMEMBER_KEY = 'fc_games_remember';
 
+    // 安全的存储访问（手机隐私模式/localStorage 禁用时不崩溃）
+    const store = {
+        get(key) {
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        },
+        set(key, val) {
+            try { localStorage.setItem(key, val); } catch (e) { /* 忽略 */ }
+        },
+        remove(key) {
+            try { localStorage.removeItem(key); } catch (e) { /* 忽略 */ }
+        },
+        sget(key) {
+            try { return sessionStorage.getItem(key); } catch (e) { return null; }
+        },
+        sset(key, val) {
+            try { sessionStorage.setItem(key, val); } catch (e) { /* 忽略 */ }
+        },
+        sremove(key) {
+            try { sessionStorage.removeItem(key); } catch (e) { /* 忽略 */ }
+        }
+    };
+
     // 封面库（libretro-thumbnails 开源封面库）
     const COVER_BASE = 'https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/';
     // ROM 名称（上传时的文件名）→ 封面文件名映射
@@ -81,10 +103,10 @@
 
     // 恢复登录状态：优先 localStorage（记住我），其次 sessionStorage（本次会话）
     function restoreToken() {
-        if (localStorage.getItem(TOKEN_KEY)) {
-            token = localStorage.getItem(TOKEN_KEY);
-        } else if (sessionStorage.getItem(TOKEN_KEY_SESSION)) {
-            token = sessionStorage.getItem(TOKEN_KEY_SESSION);
+        if (store.get(TOKEN_KEY)) {
+            token = store.get(TOKEN_KEY);
+        } else if (store.sget(TOKEN_KEY_SESSION)) {
+            token = store.sget(TOKEN_KEY_SESSION);
         } else {
             token = '';
         }
@@ -145,13 +167,13 @@
         token = data.token;
         // 记住我：token 存 localStorage（持久）；否则存 sessionStorage（关闭浏览器失效）
         if (remember) {
-            localStorage.setItem(TOKEN_KEY, token);
-            localStorage.setItem(REMEMBER_KEY, '1');
-            sessionStorage.removeItem(TOKEN_KEY_SESSION);
+            store.set(TOKEN_KEY, token);
+            store.set(REMEMBER_KEY, '1');
+            store.sremove(TOKEN_KEY_SESSION);
         } else {
-            sessionStorage.setItem(TOKEN_KEY_SESSION, token);
-            localStorage.removeItem(TOKEN_KEY);
-            localStorage.setItem(REMEMBER_KEY, '0');
+            store.sset(TOKEN_KEY_SESSION, token);
+            store.remove(TOKEN_KEY);
+            store.set(REMEMBER_KEY, '0');
         }
         updateAuthUI();
         return data;
@@ -159,8 +181,8 @@
 
     function logout() {
         token = '';
-        localStorage.removeItem(TOKEN_KEY);
-        sessionStorage.removeItem(TOKEN_KEY_SESSION);
+        store.remove(TOKEN_KEY);
+        store.sremove(TOKEN_KEY_SESSION);
         updateAuthUI();
     }
 
@@ -712,7 +734,7 @@
                 if (!res.success) throw new Error(res.error || '修改失败');
                 if (res.token) {
                     token = res.token;
-                    localStorage.setItem(TOKEN_KEY, token);
+                    store.set(TOKEN_KEY, token);
                 }
                 closeModal('changePwdModal');
                 document.getElementById('oldPassword').value = '';
