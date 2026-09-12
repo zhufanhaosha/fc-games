@@ -570,7 +570,7 @@
         }
         hint.classList.add('show');
         clearTimeout(hint._t);
-        hint._t = setTimeout(() => hint.classList.remove('show'), 2000);
+        hint._t = setTimeout(() => hint.classList.remove('show'), 1200);
     }
 
     // ==================== 云存档 ====================
@@ -1015,10 +1015,10 @@
             const origStartGame = startGame;
             startGame = function(rom, name) {
                 origStartGame(rom, name);
-                if (gamepadIndex === null) {
-                    virtualGamepad.style.display = 'flex';
-                } else {
+                if (isGamepadConnected()) {
                     virtualGamepad.style.display = 'none';
+                } else {
+                    virtualGamepad.style.display = 'flex';
                 }
             };
         }
@@ -1071,6 +1071,18 @@
 
     let prevGamepadButtons = {};
 
+    // 实时检测是否有手柄连接（getGamepads 比 gamepadconnected 事件更可靠，
+    // 页面刷新后 gamepadIndex 会丢失，但 getGamepads 仍能检测到手柄）
+    function isGamepadConnected() {
+        try {
+            const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+            for (let i = 0; i < pads.length; i++) {
+                if (pads[i] && pads[i].connected) return true;
+            }
+        } catch (e) { /* 忽略 */ }
+        return false;
+    }
+
     function setupGamepad() {
         window.addEventListener('gamepadconnected', (e) => {
             gamepadIndex = e.gamepad.index;
@@ -1084,6 +1096,10 @@
                 gamepadIndex = null;
                 gamepadHint.style.display = 'none';
                 console.log('手柄已断开');
+            }
+            // 检查是否还有其他手柄连着
+            if (!isGamepadConnected() && isTouch && nes) {
+                virtualGamepad.style.display = 'flex';
             }
         });
     }
