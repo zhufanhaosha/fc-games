@@ -616,6 +616,25 @@ footer {
     border-radius: 6px;
 }
 
+.remember-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0.25rem 0 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.remember-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
 .btn-danger {
     background: #ef4444;
     color: white;

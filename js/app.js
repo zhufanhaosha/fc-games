@@ -25,6 +25,8 @@
 
     // 存储 key
     const TOKEN_KEY = 'fc_games_token';
+    const TOKEN_KEY_SESSION = 'fc_games_token_session';
+    const REMEMBER_KEY = 'fc_games_remember';
 
     // 封面库（libretro-thumbnails 开源封面库）
     const COVER_BASE = 'https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/';
@@ -73,9 +75,21 @@
     let imageData = null;
     let canvasCtx = null;
     let serverRoms = [];
-    let token = localStorage.getItem(TOKEN_KEY) || '';
+    let token = '';
     let isTouch = false;
     let gamepadIndex = null;
+
+    // 恢复登录状态：优先 localStorage（记住我），其次 sessionStorage（本次会话）
+    function restoreToken() {
+        if (localStorage.getItem(TOKEN_KEY)) {
+            token = localStorage.getItem(TOKEN_KEY);
+        } else if (sessionStorage.getItem(TOKEN_KEY_SESSION)) {
+            token = sessionStorage.getItem(TOKEN_KEY_SESSION);
+        } else {
+            token = '';
+        }
+    }
+    restoreToken();
 
     // DOM 元素
     const gameGrid = document.getElementById('gameGrid');
@@ -120,7 +134,7 @@
         }
     }
 
-    async function apiLogin(password) {
+    async function apiLogin(password, remember) {
         const r = await fetch(`${API_BASE}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -129,7 +143,16 @@
         const data = await r.json();
         if (!data.success) throw new Error(data.error || '登录失败');
         token = data.token;
-        localStorage.setItem(TOKEN_KEY, token);
+        // 记住我：token 存 localStorage（持久）；否则存 sessionStorage（关闭浏览器失效）
+        if (remember) {
+            localStorage.setItem(TOKEN_KEY, token);
+            localStorage.setItem(REMEMBER_KEY, '1');
+            sessionStorage.removeItem(TOKEN_KEY_SESSION);
+        } else {
+            sessionStorage.setItem(TOKEN_KEY_SESSION, token);
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.setItem(REMEMBER_KEY, '0');
+        }
         updateAuthUI();
         return data;
     }
@@ -137,6 +160,7 @@
     function logout() {
         token = '';
         localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY_SESSION);
         updateAuthUI();
     }
 
@@ -642,9 +666,10 @@
         loginBtn.addEventListener('click', () => { document.getElementById('loginError').style.display = 'none'; openModal('loginModal'); });
         document.getElementById('loginConfirmBtn').addEventListener('click', async () => {
             const pwd = document.getElementById('loginPassword').value;
+            const remember = document.getElementById('rememberMe').checked;
             const errEl = document.getElementById('loginError');
             try {
-                const res = await apiLogin(pwd);
+                const res = await apiLogin(pwd, remember);
                 closeModal('loginModal');
                 document.getElementById('loginPassword').value = '';
                 renderGameGrid();
