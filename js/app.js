@@ -205,6 +205,7 @@
         setupModalClose();
         setupGamepad();
         setupTouchControls();
+        setupFullscreenListeners();
     }
 
     // 初始化 NES 模拟器
@@ -472,9 +473,53 @@
     function toggleFullscreen() {
         const screen = document.querySelector('.screen-wrapper');
         if (!document.fullscreenElement) {
-            screen.requestFullscreen().then(() => showFullscreenHint()).catch(err => console.error('全屏失败:', err));
+            screen.requestFullscreen().then(() => {
+                handleGamepadInFullscreen(true);
+                showFullscreenHint();
+            }).catch(err => console.error('全屏失败:', err));
         } else {
             document.exitFullscreen();
+        }
+    }
+
+    // 全屏时虚拟手柄移入画面；退出时移回画面下方
+    function handleGamepadInFullscreen(isFs) {
+        const screen = document.querySelector('.screen-wrapper');
+        const vg = document.getElementById('virtualGamepad');
+        const btn = document.getElementById('fullscreenExitBtn');
+        if (!vg || !screen) return;
+        if (isFs) {
+            screen.classList.add('fullscreen-gamepad');
+            screen.appendChild(vg);
+            vg.style.display = 'flex';
+            if (btn) btn.classList.add('show');
+        } else {
+            screen.classList.remove('fullscreen-gamepad');
+            document.querySelector('.emulator-container').insertBefore(vg, document.querySelector('.game-actions'));
+            if (btn) btn.classList.remove('show');
+        }
+    }
+
+    // 全屏状态监听（含手机返回键退出）
+    function setupFullscreenListeners() {
+        document.addEventListener('fullscreenchange', function() {
+            const isFs = !!document.fullscreenElement;
+            handleGamepadInFullscreen(isFs);
+            if (!isFs && document.getElementById('fullscreenExitBtn')) {
+                document.getElementById('fullscreenExitBtn').classList.remove('show');
+            }
+        });
+        // 创建退出全屏按钮
+        let exitBtn = document.getElementById('fullscreenExitBtn');
+        if (!exitBtn) {
+            exitBtn = document.createElement('button');
+            exitBtn.id = 'fullscreenExitBtn';
+            exitBtn.className = 'fullscreen-exit-btn';
+            exitBtn.textContent = '✕ 退出全屏';
+            exitBtn.addEventListener('click', function() {
+                if (document.fullscreenElement) document.exitFullscreen();
+            });
+            document.body.appendChild(exitBtn);
         }
     }
 
@@ -485,7 +530,7 @@
             hint = document.createElement('div');
             hint.id = 'fullscreenHint';
             hint.className = 'fullscreen-hint';
-            hint.textContent = '按 ESC 退出全屏';
+            hint.textContent = '按 ESC 或点击 ✕ 退出全屏';
             document.body.appendChild(hint);
         }
         hint.classList.add('show');
