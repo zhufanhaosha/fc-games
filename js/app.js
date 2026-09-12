@@ -348,10 +348,25 @@
     function toggleFullscreen() {
         const screen = document.querySelector('.screen-wrapper');
         if (!document.fullscreenElement) {
-            screen.requestFullscreen().catch(err => console.error('全屏失败:', err));
+            screen.requestFullscreen().then(() => showFullscreenHint()).catch(err => console.error('全屏失败:', err));
         } else {
             document.exitFullscreen();
         }
+    }
+
+    // 全屏提示
+    function showFullscreenHint() {
+        let hint = document.getElementById('fullscreenHint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'fullscreenHint';
+            hint.className = 'fullscreen-hint';
+            hint.textContent = '按 ESC 退出全屏';
+            document.body.appendChild(hint);
+        }
+        hint.classList.add('show');
+        clearTimeout(hint._t);
+        hint._t = setTimeout(() => hint.classList.remove('show'), 2000);
     }
 
     // ==================== 云存档 ====================
