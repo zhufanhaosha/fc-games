@@ -685,6 +685,8 @@ footer {
     pointer-events: none;
     justify-content: flex-start;
     gap: 0.5rem;
+    max-width: none;
+    width: 100%;
 }
 
 /* 全屏时：方向键固定靠左 */
