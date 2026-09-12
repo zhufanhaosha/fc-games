@@ -128,7 +128,6 @@
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     const uploadStatus = document.getElementById('uploadStatus');
     const romCount = document.getElementById('romCount');
-    const gamepadHint = document.getElementById('gamepadHint');
     const virtualGamepad = document.getElementById('virtualGamepad');
     const loginBtn = document.getElementById('loginBtn');
     const loginStatus = document.getElementById('loginStatus');
@@ -487,7 +486,6 @@
             screen.requestFullscreen().then(() => {
                 lockLandscape();
                 handleGamepadInFullscreen(true);
-                showFullscreenHint();
             }).catch(err => console.error('全屏失败:', err));
         } else {
             document.exitFullscreen();
@@ -556,21 +554,6 @@
             });
             document.body.appendChild(exitBtn);
         }
-    }
-
-    // 全屏提示
-    function showFullscreenHint() {
-        let hint = document.getElementById('fullscreenHint');
-        if (!hint) {
-            hint = document.createElement('div');
-            hint.id = 'fullscreenHint';
-            hint.className = 'fullscreen-hint';
-            hint.textContent = '按 ESC 或点击 ✕ 退出全屏';
-            document.body.appendChild(hint);
-        }
-        hint.classList.add('show');
-        clearTimeout(hint._t);
-        hint._t = setTimeout(() => hint.classList.remove('show'), 1200);
     }
 
     // ==================== 云存档 ====================
@@ -1086,7 +1069,6 @@
     function setupGamepad() {
         window.addEventListener('gamepadconnected', (e) => {
             gamepadIndex = e.gamepad.index;
-            gamepadHint.style.display = 'block';
             // 连接手柄后自动隐藏虚拟按键（触摸屏不再需要）
             if (virtualGamepad) virtualGamepad.style.display = 'none';
             console.log('手柄已连接:', e.gamepad.id);
@@ -1094,7 +1076,6 @@
         window.addEventListener('gamepaddisconnected', (e) => {
             if (gamepadIndex === e.gamepad.index) {
                 gamepadIndex = null;
-                gamepadHint.style.display = 'none';
                 console.log('手柄已断开');
             }
             // 检查是否还有其他手柄连着
