@@ -133,6 +133,31 @@
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             canvasCtx = gameCanvas.getContext('2d');
 
+            // ---- 音频输出 ----
+            // 样本队列：jsnes 每帧产生约 sampleRate/60 个样本
+            const audioQueue = [];
+            let audioNode = null;
+            try {
+                // 使用 ScriptProcessorNode 播放收集到的音频样本
+                audioNode = audioContext.createScriptProcessor(4096, 0, 2);
+                audioNode.onaudioprocess = function(e) {
+                    const outL = e.outputBuffer.getChannelData(0);
+                    const outR = e.outputBuffer.getChannelData(1);
+                    for (let i = 0; i < outL.length; i++) {
+                        if (audioQueue.length >= 2) {
+                            outL[i] = audioQueue.shift();
+                            outR[i] = audioQueue.shift();
+                        } else {
+                            outL[i] = 0;
+                            outR[i] = 0;
+                        }
+                    }
+                };
+                audioNode.connect(audioContext.destination);
+            } catch (e) {
+                console.warn('音频初始化失败:', e);
+            }
+
             const offscreen = document.createElement('canvas');
             offscreen.width = 256;
             offscreen.height = 240;
@@ -140,6 +165,7 @@
             imageData = offCtx.createImageData(256, 240);
 
             nes = new NES({
+                sampleRate: 48000,
                 onFrame: function(frameBuffer) {
                     const data = imageData.data;
                     for (let i = 0; i < 61440; i++) {
@@ -153,8 +179,25 @@
                     offCtx.putImageData(imageData, 0, 0);
                     canvasCtx.drawImage(offscreen, 0, 0);
                 },
-                onAudioSample: function() {}
+                onAudioSample: function(left, right) {
+                    if (audioNode) {
+                        audioQueue.push(left, right);
+                        // 限制队列长度，防止内存增长（约 0.2 秒）
+                        if (audioQueue.length > 48000 * 2 * 0.2) {
+                            audioQueue.splice(0, audioQueue.length - 48000 * 2 * 0.2);
+                        }
+                    }
+                }
             });
+
+            // 浏览器自动播放策略：需要用户交互后才允许播放
+            const resumeAudio = () => {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().catch(() => {});
+                }
+            };
+            document.addEventListener('click', resumeAudio);
+            document.addEventListener('keydown', resumeAudio);
 
             console.log('NES 模拟器初始化完成');
             return true;
