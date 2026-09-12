@@ -20,8 +20,8 @@
         smw: { name: '马里奥赛车', icon: '🏎️', desc: '赛车竞速' }
     };
 
-    // ROM 服务器地址
-    const API_BASE = 'https://fc-roms.568238911.workers.dev';
+    // ROM 服务器地址（绑定自定义域名，避免 workers.dev 被墙）
+    const API_BASE = 'https://api.zhufan.cc.cd';
 
     // 存储 key
     const TOKEN_KEY = 'fc_games_token';
