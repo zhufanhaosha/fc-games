@@ -679,28 +679,38 @@ footer {
     right: 0;
     bottom: 0;
     margin: 0;
-    padding: 0.8rem 1rem;
+    padding: 0.6rem 0.8rem;
     opacity: 0.55;
     z-index: 20;
     pointer-events: none;
+    justify-content: flex-start;
+    gap: 0.5rem;
 }
 
-/* 全屏时：方向键靠左，A/B/AA/BB 推到最右边 */
+/* 全屏时：方向键固定靠左 */
 .screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-dpad {
-    margin-right: auto;
+    pointer-events: auto;
+    margin: 0;
 }
 
+/* 全屏时：SEL/STA 绝对居中（可点击） */
 .screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-middle {
-    margin: 0 auto;
-    pointer-events: none;
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    margin: 0;
+    pointer-events: auto;
+    flex-direction: row;
+    gap: 10px;
 }
 
+/* 全屏时：A/B/AA/BB 绝对定位到右下角 */
 .screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-actions {
-    margin-left: auto;
-}
-
-.screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-dpad,
-.screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-actions {
+    position: absolute;
+    right: 16px;
+    bottom: 18px;
+    margin: 0;
     pointer-events: auto;
 }
 
