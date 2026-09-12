@@ -685,6 +685,20 @@ footer {
     pointer-events: none;
 }
 
+/* 全屏时：方向键靠左，A/B/AA/BB 推到最右边 */
+.screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-dpad {
+    margin-right: auto;
+}
+
+.screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-middle {
+    margin: 0 auto;
+    pointer-events: none;
+}
+
+.screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-actions {
+    margin-left: auto;
+}
+
 .screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-dpad,
 .screen-wrapper.fullscreen-gamepad .virtual-gamepad .gp-actions {
     pointer-events: auto;
