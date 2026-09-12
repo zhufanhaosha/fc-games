@@ -26,6 +26,40 @@
     // 存储 key
     const TOKEN_KEY = 'fc_games_token';
 
+    // 封面库（libretro-thumbnails 开源封面库）
+    const COVER_BASE = 'https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/';
+    // ROM 名称（上传时的文件名）→ 封面文件名映射
+    const COVER_MAP = {
+        "Battle City[GYCH]": "Battle City (1985-09-09)(Namco)(JP).png",
+        "LOAD RUNNER": "Lode Runner (USA).png",
+        "松鼠大戰 J體力不減命數不減 BY 疾風之狼": "Chip 'n Dale - Rescue Rangers (USA).png",
+        "Mitsume ga Tooru [MS]": "Mitsume ga Tooru (Japan).png",
+        "双截龙2代无限人数版": "Double Dragon II - The Revenge (USA) (Rev 1).png",
+        "双截龙1代加强版": "Double Dragon (1988-06)(Tradewest)(US).png",
+        "19.激龟忍者传2无敌HACK": "Teenage Mutant Ninja Turtles II - The Arcade Game (USA).png",
+        "8.热血格斗单人出合体技版": "Downtown - Nekketsu Koushinkyoku - Soreyuke Daiundoukai (Japan).png",
+        "248.热血篮球_无限跳跃HACK版 V1.1": "Nekketsu! Street Basket - Ganbare Dunk Heroes (Japan).png",
+        "马戏团不减命无限跳跃[CH]": "Circus Charlie (Japan).png",
+        "68.冒险岛无敌版(HACK)": "Adventure Island (USA).png",
+        "超级马里奥 10条命 火人 全屏攻击 无限跳 ": "Super Mario Bros. (World).png",
+        "龙珠Z - 超武斗传2 气波连打": "Datach - Dragon Ball Z - Gekitou Tenkaichi Budoukai (Japan).png",
+        "128.激龟忍者传-无敌版": "Teenage Mutant Ninja Turtles (USA).png",
+        "FC街霸9人SUPPER版！": "Street Fighter 2010 - The Final Fight (USA).png",
+        "怪鸭历险记(命不减,血不减)by danch744": "Darkwing Duck (USA).png",
+        "199.古巴革命人数无限": "Guerrilla War (USA).png",
+        "Galaga(MS CN)": "Galaga - Demons of Death (USA).png",
+        "202.吃豆人数不减": "Pac-Man (USA) (Namco) (Virtual Console).png",
+        "1942(MS CH)": "1942 (1985-12-11)(Capcom)(JP-US).png",
+        "232.唐老鸭梦冒险(血时间命无限)": "DuckTales (USA).png",
+        "93超级魂加强版": "Super Contra (Japan).png"
+    };
+    // 获取 ROM 封面 URL（找不到返回 null）
+    function getCoverUrl(romName) {
+        const cover = COVER_MAP[romName];
+        if (!cover) return null;
+        return COVER_BASE + encodeURIComponent(cover).replace(/%2F/g, '/');
+    }
+
     // 游戏状态
     let nes = null;
     let audioContext = null;
@@ -260,8 +294,9 @@
             serverRoms.forEach(rom => {
                 const card = document.createElement('div');
                 card.className = 'game-card saved';
+                const coverUrl = getCoverUrl(rom.name);
                 card.innerHTML = `
-                    <div class="game-card-icon">🎮</div>
+                    <div class="game-card-icon">${coverUrl ? `<img class="game-cover" src="${coverUrl}" alt="${rom.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">` : '🎮'}</div>
                     <div class="game-card-name">${rom.name}</div>
                     <div class="game-card-desc">${rom.sizeKB}KB · ${formatTime(rom.uploadTime)}</div>
                     ${loggedIn ? `<button class="card-delete" data-id="${rom.id}" title="删除">&times;</button>` : ''}

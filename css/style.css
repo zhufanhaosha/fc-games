@@ -127,6 +127,22 @@ h2::before {
 .game-card-icon {
     font-size: 3rem;
     margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.game-cover {
+    width: 100%;
+    aspect-ratio: 4/5;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease;
+}
+
+.game-card:hover .game-cover {
+    transform: scale(1.05);
 }
 
 .game-card-name {
