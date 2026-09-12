@@ -100,6 +100,7 @@
     let token = '';
     let isTouch = false;
     let gamepadIndex = null;
+    let audioQueue = []; // 音频样本队列（模块级，切换游戏时可清空）
 
     // 恢复登录状态：优先 localStorage（记住我），其次 sessionStorage（本次会话）
     function restoreToken() {
@@ -216,7 +217,7 @@
 
             // ---- 音频输出 ----
             // 样本队列：jsnes 每帧产生约 sampleRate/60 个样本
-            const audioQueue = [];
+            audioQueue = [];
             let audioNode = null;
             try {
                 // 使用 ScriptProcessorNode 播放收集到的音频样本
@@ -428,6 +429,17 @@
         if (!nes) { alert('模拟器未初始化'); return; }
 
         try {
+            // 切换游戏前清理：停止旧循环、清空音频队列、释放手柄按键
+            if (gameLoop) { cancelAnimationFrame(gameLoop); gameLoop = null; }
+            audioQueue.length = 0;
+            prevGamepadButtons = {};
+            try {
+                const oldC = nes.controllers[1] || nes.Controller1;
+                if (oldC) {
+                    for (let i = 0; i < 10; i++) oldC.buttonUp(i);
+                }
+            } catch (e) { /* 忽略 */ }
+
             nes.loadROM(rom);
             currentGame = name;
             isPlaying = true;
@@ -439,8 +451,6 @@
             pauseBtn.disabled = false;
             saveBtn.disabled = !currentRomId;
             loadBtn.disabled = !currentRomId;
-
-            if (gameLoop) cancelAnimationFrame(gameLoop);
 
             function gameLoopFn() {
                 if (!isPaused && isPlaying) nes.frame();
@@ -469,17 +479,38 @@
         pauseBtn.textContent = isPaused ? '继续 (Space)' : '暂停 (Space)';
     }
 
-    // 全屏模式
+    // 全屏模式（统一横屏）
     function toggleFullscreen() {
         const screen = document.querySelector('.screen-wrapper');
         if (!document.fullscreenElement) {
             screen.requestFullscreen().then(() => {
+                lockLandscape();
                 handleGamepadInFullscreen(true);
                 showFullscreenHint();
             }).catch(err => console.error('全屏失败:', err));
         } else {
             document.exitFullscreen();
         }
+    }
+
+    // 全屏时锁定横屏（Chrome/Android 支持；不支持则静默跳过）
+    function lockLandscape() {
+        try {
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                screen.orientation.lock('landscape').catch(() => {
+                    console.log('浏览器不支持强制横屏，跳过');
+                });
+            }
+        } catch (e) { /* 忽略 */ }
+    }
+
+    // 退出全屏时解锁方向
+    function unlockOrientation() {
+        try {
+            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+            }
+        } catch (e) { /* 忽略 */ }
     }
 
     // 全屏时虚拟手柄移入画面；退出时移回画面下方
@@ -505,8 +536,11 @@
         document.addEventListener('fullscreenchange', function() {
             const isFs = !!document.fullscreenElement;
             handleGamepadInFullscreen(isFs);
-            if (!isFs && document.getElementById('fullscreenExitBtn')) {
-                document.getElementById('fullscreenExitBtn').classList.remove('show');
+            if (!isFs) {
+                unlockOrientation();
+                if (document.getElementById('fullscreenExitBtn')) {
+                    document.getElementById('fullscreenExitBtn').classList.remove('show');
+                }
             }
         });
         // 创建退出全屏按钮
